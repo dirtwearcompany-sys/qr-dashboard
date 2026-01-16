@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>QR Dashboard</title>
+
+  <!-- QR Code Library -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+  <style>
+    body { font-family: Arial; max-width: 900px; margin: auto; padding: 20px; }
+    input, button { padding: 8px; margin: 5px; width: 300px; }
+    .qr-item { display: flex; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+    .qr-info { margin-left: 20px; }
+    .delete { background: red; color: white; border: none; padding: 6px; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+<h1>QR Dashboard</h1>
+
+<!-- LOGIN -->
+<div id="login">
+  <h2>Sign In</h2>
+  <input id="email" placeholder="Email"><br>
+  <input id="password" type="password" placeholder="Password"><br>
+  <button id="loginBtn">Sign In</button>
+  <p id="loginError" style="color:red;"></p>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard" style="display:none;">
+  <h2>Create QR Code</h2>
+  <input id="label" placeholder="Label"><br>
+  <input id="url" placeholder="Destination URL (https://...)"><br>
+  <button id="createBtn">Create QR Code</button>
+
+  <h2>All QR Codes</h2>
+  <div id="qrList"></div>
+</div>
+
+<script type="module">
+  // Firebase imports
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } 
+    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+  import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc } 
+    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+  // 🔥 FIREBASE CONFIG (REPLACE THESE)
+  const firebaseConfig = {
+    piKey: "AIzaSyDPfjv3ZZ18ELPiC2Jc-z_yk86ejOvAad4",
+  authDomain: "qr-tracker-4b53e.firebaseapp.com",
+  projectId: "qr-tracker-4b53e"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const qrRef = collection(db, "qrcodes");
+
+  // 🔗 CHANGE THIS TO YOUR REAL GITHUB PAGES URL
+  const baseURL = "https://YOURUSERNAME.github.io/qr-dashboard/scan.html";
+
+  // LOGIN
+  document.getElementById("loginBtn").onclick = async () => {
+    try {
+      await signInWithEmailAndPassword(
+        auth,
+        email.value,
+        password.value
+      );
+    } catch (err) {
+      loginError.textContent = err.message;
+    }
+  };
+
+  // AUTH STATE
+  onAuthStateChanged(auth, user => {
+    if (user) {
+      login.style.display = "none";
+      dashboard.style.display = "block";
+    }
+  });
+
+  // CREATE QR
+  document.getElementById("createBtn").onclick = async () => {
+    const label = document.getElementById("label").value.trim();
+    const url = document.getElementById("url").value.trim();
+
+    if (!label || !url) {
+      alert("Enter label and URL");
+      return;
+    }
+
+    await addDoc(qrRef, { label, url, scans: 0 });
+    label.value = "";
+    url.value = "";
+  };
+
+  // DELETE QR
+  async function deleteQR(id) {
+    if (confirm("Delete this QR code?")) {
+      await deleteDoc(doc(db, "qrcodes", id));
+    }
+  }
+
+  // DISPLAY QRS
+  onSnapshot(qrRef, snapshot => {
+    qrList.innerHTML = "";
+    snapshot.forEach(d => {
+      const data = d.data();
+
+      const div = document.createElement("div");
+      div.className = "qr-item";
+
+      const qrBox = document.createElement("div");
+      new QRCode(qrBox, {
+        text: `${baseURL}?id=${d.id}`,
+        width: 120,
+        height: 120
+      });
+
+      const info = document.createElement("div");
+      info.className = "qr-info";
+      info.innerHTML = `
+        <strong>${data.label}</strong><br>
+        Scans: ${data.scans}<br>
+        ${data.url}<br><br>
+      `;
+
+      const del = document.createElement("button");
+      del.textContent = "Delete";
+      del.className = "delete";
+      del.onclick = () => deleteQR(d.id);
+
+      info.appendChild(del);
+      div.appendChild(qrBox);
+      div.appendChild(info);
+      qrList.appendChild(div);
+    });
+  });
+</script>
+
+</body>
+</html>
