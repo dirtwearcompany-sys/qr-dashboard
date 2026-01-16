@@ -19,29 +19,22 @@ button { cursor:pointer }
 <body>
 <h1>QR Dashboard</h1>
 
-<div id="auth">
-  <button id="googleBtn">Sign in with Google</button>
-</div>
-
-<div id="dashboard" style="display:none;">
+<div id="dashboard">
   <h2>Create QR</h2>
   <input id="label" placeholder="Label"><br>
   <input id="url" placeholder="https://example.com"><br>
   <button id="createBtn">Create QR</button>
 
-  <h2>Your QR Codes</h2>
+  <h2>All QR Codes</h2>
   <div id="qrList"></div>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged }
-from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc }
+import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc } 
 from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-const ADMIN_EMAIL = "youremail@gmail.com";
-
+// 🔥 Your Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyDPfjv3ZZ18ELPiC2Jc-z_yk86ejOvAad4",
   authDomain: "qr-tracker-4b53e.firebaseapp.com",
@@ -49,34 +42,31 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
 const db = getFirestore(app);
 const qrRef = collection(db, "qrcodes");
 
+// MUST MATCH YOUR scan.html URL
 const baseURL = "https://YOURUSERNAME.github.io/qr-dashboard/scan.html";
 
-googleBtn.onclick = async () => {
-  await signInWithPopup(auth, new GoogleAuthProvider());
-};
-
-onAuthStateChanged(auth, user => {
-  if (!user || user.email !== ADMIN_EMAIL) {
-    auth.style.display = "block";
-    dashboard.style.display = "none";
-    if (user) alert("Access denied");
-    return;
-  }
-  auth.style.display = "none";
-  dashboard.style.display = "block";
-});
-
+// CREATE QR
 createBtn.onclick = async () => {
-  if (!label.value || !url.value) return alert("Missing fields");
-  await addDoc(qrRef, { label: label.value, url: url.value, scans: 0, daily:{} });
+  const labelVal = label.value.trim();
+  const urlVal = url.value.trim();
+  if (!labelVal || !urlVal) return alert("Enter label and URL");
+
+  await addDoc(qrRef, { label: labelVal, url: urlVal, scans: 0, daily:{} });
   label.value = "";
   url.value = "";
 };
 
+// DELETE QR
+async function removeQR(id){
+  if(confirm("Delete this QR code?")){
+    await deleteDoc(doc(db, "qrcodes", id));
+  }
+}
+
+// DOWNLOAD QR
 function downloadQR(canvas, name){
   const a = document.createElement("a");
   a.href = canvas.toDataURL();
@@ -84,12 +74,7 @@ function downloadQR(canvas, name){
   a.click();
 }
 
-async function remove(id){
-  if(confirm("Delete this QR?")){
-    await deleteDoc(doc(db,"qrcodes",id));
-  }
-}
-
+// DISPLAY QR CODES
 onSnapshot(qrRef, snap => {
   qrList.innerHTML = "";
   snap.forEach(d => {
@@ -98,7 +83,7 @@ onSnapshot(qrRef, snap => {
     row.className = "qr-item";
 
     const box = document.createElement("div");
-    const qr = new QRCode(box, {
+    new QRCode(box, {
       text: `${baseURL}?id=${d.id}`,
       width:120,
       height:120
@@ -115,7 +100,7 @@ onSnapshot(qrRef, snap => {
     const del = document.createElement("button");
     del.textContent = "Delete";
     del.className = "delete";
-    del.onclick = () => remove(d.id);
+    del.onclick = () => removeQR(d.id);
 
     const dl = document.createElement("button");
     dl.textContent = "Download";
