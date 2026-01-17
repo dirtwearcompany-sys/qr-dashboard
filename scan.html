@@ -1,68 +1,38 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>QR Scan</title>
-  <style>
-    body { font-family: Arial; text-align: center; margin-top: 100px; }
-    h2 { color: #333; }
-  </style>
+<meta charset="UTF-8">
+<title>QR Redirect</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
-<h2 id="message">Processing your scan...</h2>
-
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, doc, setDoc, updateDoc, increment, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-// 🔥 Replace with your Firebase config
+<p>Redirecting...</p>
+<script>
 const firebaseConfig = {
   apiKey: "AIzaSyDPfjv3ZZ18ELPiC2Jc-z_yk86ejOvAad4",
   authDomain: "qr-tracker-4b53e.firebaseapp.com",
-  projectId: "qr-tracker-4b53e"
+  projectId: "qr-tracker-4b53e",
+  storageBucket: "qr-tracker-4b53e.firebasestorage.app",
+  messagingSenderId: "329754045002",
+  appId: "1:329754045002:web:922633ad6ada8018a1d4b3"
 };
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-// Get QR code ID from URL: scan.html?id=qr123
 const params = new URLSearchParams(window.location.search);
-const codeId = params.get("id");
+const id = params.get('id');
 
-// Mapping of QR code IDs to actual destination URLs (hidden from user)
-const destinations = {
-  "promo1": "https://example.com/promo1",
-  "promo2": "https://example.com/promo2",
-  "promo3": "https://example.com/promo3"
-};
-
-const messageEl = document.getElementById("message");
-
-if(codeId && destinations[codeId]){
-  const docRef = doc(db, "qr_codes", codeId);
-
-  // Increment scan count & log timestamp
-  updateDoc(docRef, { 
-    count: increment(1), 
-    lastScanned: serverTimestamp()
-  })
-  .catch(async (err) => {
-    // If doc doesn't exist, create it
-    await setDoc(docRef, { count: 1, lastScanned: serverTimestamp() });
-  });
-
-  // Show thank you message
-  messageEl.textContent = "Thank you for scanning! Redirecting...";
-
-  // Redirect to hidden URL after 2 seconds
-  setTimeout(() => {
-    window.location.href = destinations[codeId];
-  }, 2000);
-
+if(!id) {
+  document.body.innerHTML = "Invalid QR Code";
 } else {
-  // Invalid QR code
-  messageEl.textContent = "Invalid QR code.";
+  const docRef = db.collection('qrcodes').doc(id);
+  docRef.get().then(doc => {
+    if(!doc.exists) return document.body.innerHTML = "QR Code not found";
+    const data = doc.data();
+    docRef.update({scans: firebase.firestore.FieldValue.increment(1)});
+    window.location.href = data.text; // Redirect to the original URL/text
+  });
 }
 </script>
 </body>
