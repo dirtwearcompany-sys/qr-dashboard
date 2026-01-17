@@ -8,18 +8,18 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 <style>
-  body { font-family: Arial, sans-serif; background: #f9f9f9; margin: 0; padding: 0; }
-  header { background: #4CAF50; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
-  header h1 { margin: 0; font-size: 24px; }
-  header button { background: #fff; color: #4CAF50; border: none; padding: 8px 12px; cursor: pointer; border-radius: 4px; font-weight: bold; }
-  main { padding: 20px; max-width: 800px; margin: auto; }
-  input, button { padding: 10px; margin: 5px 0; width: 100%; box-sizing: border-box; }
-  .qr-preview { margin: 10px 0; text-align: center; }
-  .qr-card { background: white; padding: 15px; margin: 15px 0; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
-  .qr-info { flex: 1; min-width: 150px; }
-  .qr-actions button { margin-right: 5px; padding: 5px 10px; border-radius: 4px; border: none; cursor: pointer; }
-  .download { background: #2196F3; color: white; }
-  .delete { background: #f44336; color: white; }
+body { font-family: Arial, sans-serif; background: #f9f9f9; margin:0; padding:0;}
+header { background: #4CAF50; color: white; padding:15px; display:flex; justify-content: space-between; align-items:center; }
+header h1 { margin:0; font-size:24px; }
+header button { background: #fff; color:#4CAF50; border:none; padding:8px 12px; cursor:pointer; border-radius:4px; font-weight:bold; }
+main { padding:20px; max-width:800px; margin:auto; }
+input, button { padding:10px; margin:5px 0; width:100%; box-sizing:border-box; }
+.qr-preview { margin:10px 0; text-align:center; }
+.qr-card { background:white; padding:15px; margin:15px 0; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.1); display:flex; align-items:center; gap:20px; flex-wrap:wrap;}
+.qr-info { flex:1; min-width:150px; }
+.qr-actions button { margin-right:5px; padding:5px 10px; border-radius:4px; border:none; cursor:pointer; }
+.download { background:#2196F3; color:white; }
+.delete { background:#f44336; color:white; }
 </style>
 </head>
 <body>
@@ -29,16 +29,16 @@
 </header>
 
 <main>
-  <h3>Create a new QR code</h3>
-  <input type="text" id="qrLabel" placeholder="Label (optional)">
-  <input type="text" id="qrText" placeholder="Enter URL or text" oninput="updatePreview()">
-  <div class="qr-preview">
-    <canvas id="previewCanvas"></canvas>
-  </div>
-  <button onclick="createQRCode()">Create QR Code</button>
+<h3>Create a new QR code</h3>
+<input type="text" id="qrLabel" placeholder="Label (optional)">
+<input type="text" id="qrText" placeholder="Enter URL or text" oninput="updatePreview()">
+<div class="qr-preview">
+  <canvas id="previewCanvas"></canvas>
+</div>
+<button onclick="createQRCode()">Create QR Code</button>
 
-  <h3>Your QR Codes</h3>
-  <div id="qrList"></div>
+<h3>Your QR Codes</h3>
+<div id="qrList"></div>
 </main>
 
 <script>
@@ -58,65 +58,62 @@ let user;
 
 // AUTH
 auth.onAuthStateChanged(u => {
-  if (!u) return location.href = 'login.html';
+  if(!u) return location.href='login.html';
   user = u;
   loadQRCodesRealtime();
 });
 
 // LOGOUT
-function logout() {
-  auth.signOut().then(() => location.href = 'login.html');
-}
+function logout() { auth.signOut().then(()=>location.href='login.html'); }
 
-// CREATE QR CODE
+// CREATE QR
 function createQRCode() {
   const text = document.getElementById('qrText').value.trim();
   const label = document.getElementById('qrLabel').value.trim();
   if(!text) return alert("Enter a URL or text");
+  if(!user) return alert("User not logged in");
 
-  const docRef = db.collection('qrcodes').doc();
-  docRef.set({
+  db.collection('qrcodes').doc().set({
     uid: user.uid,
     text: text,
     label: label,
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     scans: 0
-  }).then(() => {
-    document.getElementById('qrText').value = '';
-    document.getElementById('qrLabel').value = '';
+  })
+  .then(()=>{
+    document.getElementById('qrText').value='';
+    document.getElementById('qrLabel').value='';
     document.getElementById('previewCanvas').getContext('2d').clearRect(0,0,200,200);
-  }).catch(err => alert("Error creating QR: " + err.message));
+  })
+  .catch(err => alert("Error creating QR: "+err.message));
 }
 
-// LIVE QR PREVIEW
+// LIVE PREVIEW
 function updatePreview() {
   const text = document.getElementById('qrText').value.trim();
   const canvas = document.getElementById('previewCanvas');
-  if(!text) {
-    canvas.getContext('2d').clearRect(0,0,200,200);
-    return;
-  }
-  QRCode.toCanvas(canvas, window.location.origin + '/scan.html?id=preview-' + encodeURIComponent(text), function(err) {
+  if(!text) return canvas.getContext('2d').clearRect(0,0,200,200);
+  QRCode.toCanvas(canvas, window.location.origin+'/scan.html?id=preview-'+encodeURIComponent(text), err=>{
     if(err) console.error(err);
   });
 }
 
-// REAL-TIME QR CODES
+// REAL-TIME DASHBOARD
 function loadQRCodesRealtime() {
   db.collection('qrcodes').where('uid','==',user.uid)
     .orderBy('createdAt','desc')
-    .onSnapshot(snapshot => {
+    .onSnapshot(snapshot=>{
       const container = document.getElementById('qrList');
-      container.innerHTML = '';
-      snapshot.forEach(doc => {
+      container.innerHTML='';
+      snapshot.forEach(doc=>{
         const data = doc.data();
         const div = document.createElement('div');
-        div.className = "qr-card";
+        div.className="qr-card";
         const qrId = doc.id;
 
         div.innerHTML = `
           <div class="qr-info">
-            <strong>Label:</strong> ${data.label || "—"}<br>
+            <strong>Label:</strong> ${data.label||'—'}<br>
             <strong>Text/URL:</strong> ${data.text}<br>
             <strong>Scans:</strong> <span id="scan-${qrId}">${data.scans}</span>
           </div>
@@ -128,28 +125,25 @@ function loadQRCodesRealtime() {
         `;
         container.appendChild(div);
 
-        // Generate QR code
-        QRCode.toCanvas(document.getElementById(`canvas-${qrId}`), window.location.origin + '/scan.html?id=' + qrId, function (error) {
-          if (error) console.error(error);
+        QRCode.toCanvas(document.getElementById(`canvas-${qrId}`), window.location.origin+'/scan.html?id='+qrId, err=>{
+          if(err) console.error(err);
         });
       });
     });
 }
 
 // DOWNLOAD
-function downloadQRCode(id) {
-  const canvas = document.getElementById(`canvas-${id}`);
-  const link = document.createElement('a');
-  link.href = canvas.toDataURL("image/png");
-  link.download = 'qr.png';
+function downloadQRCode(id){
+  const canvas=document.getElementById(`canvas-${id}`);
+  const link=document.createElement('a');
+  link.href=canvas.toDataURL("image/png");
+  link.download='qr.png';
   link.click();
 }
 
 // DELETE
-function deleteQRCode(id) {
-  if(confirm("Delete this QR code?")) {
-    db.collection('qrcodes').doc(id).delete();
-  }
+function deleteQRCode(id){
+  if(confirm("Delete this QR code?")) db.collection('qrcodes').doc(id).delete();
 }
 </script>
 </body>
