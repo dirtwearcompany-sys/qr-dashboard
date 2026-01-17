@@ -105,7 +105,8 @@ function loadQRCodesRealtime() {
         qrList.appendChild(div);
 
         // Generate QR code pointing to scan.html on GitHub Pages
-        const githubPagesUrl = "https://dirtwearcompany-sys.github.io/qr.dashboard";
+        const githubPagesUrl = "https://dirtwearcompany-sys.github.io/qr.dashboard/scan.html?id=<doc.id>
+";
         const fullScanUrl = githubPagesUrl + '/scan.html?id=' + doc.id;
 
         QRCode.toCanvas(
