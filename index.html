@@ -73,7 +73,7 @@ function logout() { auth.signOut().then(()=>location.href='login.html'); }
 function createQRCode() {
   const label = qrLabel.value.trim();
   let text = qrText.value.trim();
-  if (!label) return alert("Enter a label for the QR code.");
+  if (!label) return alert("Enter a label.");
 
   db.collection('qrcodes').add({
     uid: user.uid,
@@ -83,16 +83,14 @@ function createQRCode() {
     lastScan: null,
     locked: false
   }).then(docRef => {
-    // Determine URL
-    if (text && /^https?:\/\//.test(text)) {
-      text = text;
-    } else {
+    if (!text || !/^https?:\/\//.test(text)) {
       text = `${githubPagesUrl}/scan.html?id=${docRef.id}`;
     }
-    return docRef.update({ text });
-  }).then(() => {
+    return docRef.update({ text }).then(() => docRef.id);
+  }).then(docId => {
     qrLabel.value = '';
     qrText.value = '';
+    console.log("QR created:", docId);
   }).catch(err => alert(err.message));
 }
 
@@ -104,18 +102,18 @@ function loadQRCodesRealtime() {
       snapshot.forEach(doc => {
         const d = doc.data();
         const div = document.createElement('div');
-        div.className = 'qr-card' + (d.locked ? ' locked' : '');
+        div.className = `qr-card${d.locked ? ' locked' : ''}`;
         div.id = `qr-${doc.id}`;
         div.innerHTML = `
           <strong>${d.label || 'Untitled QR'}</strong><br>
-          Locked: <span id="locked-${doc.id}">${d.locked ? 'Yes' : 'No'}</span><br>
+          Status: <span id="status-${doc.id}">${d.locked ? 'Locked' : 'Unlocked'}</span><br>
           Scans: <span id="scancount-${doc.id}">${d.scans || 0}</span><br>
           Last Scan: <span id="lastscan-${doc.id}">${d.lastScan ? d.lastScan.toDate().toLocaleString() : 'Never'}</span><br><br>
           <canvas id="c-${doc.id}"></canvas><br><br>
           <div class="qr-actions">
             <button onclick="downloadQRCode('${doc.id}')">Download</button>
             <button onclick="deleteQRCode('${doc.id}')">Delete</button>
-            <button onclick="toggleLock('${doc.id}', ${d.locked})">${d.locked ? 'Unlock' : 'Lock'}</button>
+            <button onclick="toggleLock('${doc.id}')">${d.locked ? 'Unlock' : 'Lock'}</button>
           </div>
           <h4>Scan Log</h4>
           <table class="scan-table" id="table-${doc.id}">
@@ -125,7 +123,6 @@ function loadQRCodesRealtime() {
         `;
         qrList.appendChild(div);
 
-        // Generate QR code
         QRCode.toCanvas(document.getElementById(`c-${doc.id}`), d.text);
 
         // ---------------------- LIVE SCAN COUNT & LOG ----------------------
@@ -142,11 +139,8 @@ function loadQRCodesRealtime() {
               tbody.appendChild(tr);
             });
             document.getElementById(`scancount-${doc.id}`).textContent = count;
-            if(scanSnapshot.docs[0]){
-              document.getElementById(`lastscan-${doc.id}`).textContent = scanSnapshot.docs[0].data().timestamp.toDate().toLocaleString();
-            } else {
-              document.getElementById(`lastscan-${doc.id}`).textContent = 'Never';
-            }
+            document.getElementById(`lastscan-${doc.id}`).textContent =
+              scanSnapshot.docs[0] ? scanSnapshot.docs[0].data().timestamp.toDate().toLocaleString() : 'Never';
           });
       });
     });
@@ -168,10 +162,13 @@ function deleteQRCode(id) {
   }
 }
 
-// ---------------------- LOCK / UNLOCK ----------------------
-function toggleLock(id, currentState) {
-  db.collection('qrcodes').doc(id).update({
-    locked: !currentState
+// ---------------------- LOCK/UNLOCK ----------------------
+function toggleLock(id) {
+  const docRef = db.collection('qrcodes').doc(id);
+  docRef.get().then(doc => {
+    if (!doc.exists) return;
+    const current = doc.data().locked || false;
+    docRef.update({ locked: !current });
   });
 }
 </script>
