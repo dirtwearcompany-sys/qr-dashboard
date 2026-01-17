@@ -48,14 +48,21 @@ if (!id) {
     }
     const data = doc.data();
 
-    // ---------------------- ATOMIC SCAN UPDATE ----------------------
+    // ---------------------- LOG SCAN ----------------------
+    const scanRef = docRef.collection('scans').doc();
+    const now = firebase.firestore.Timestamp.now();
+
+    // Add a scan document
+    scanRef.set({ timestamp: now }).catch(console.error);
+
+    // Increment scans counter and update lastScan
     docRef.update({
       scans: firebase.firestore.FieldValue.increment(1),
-      lastScan: firebase.firestore.Timestamp.now()
+      lastScan: now
     }).catch(console.error);
 
     // ---------------------- REDIRECT ----------------------
-    const redirectUrl = data.text; // full URL from Firestore
+    const redirectUrl = data.text; // full URL
 
     let countdown = 3;
     const countdownElem = document.getElementById('countdown');
