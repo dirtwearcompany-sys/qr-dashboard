@@ -3,38 +3,35 @@
 <head>
 <meta charset="UTF-8">
 <title>QR Dashboard</title>
+
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
 <style>
-body { font-family: Arial, sans-serif; background: #f9f9f9; margin:0; padding:0;}
-header { background: #4CAF50; color: white; padding:15px; display:flex; justify-content: space-between; align-items:center; }
-header h1 { margin:0; font-size:24px; }
-header button { background: #fff; color:#4CAF50; border:none; padding:8px 12px; cursor:pointer; border-radius:4px; font-weight:bold; }
-main { padding:20px; max-width:800px; margin:auto; }
-input, button { padding:10px; margin:5px 0; width:100%; box-sizing:border-box; }
-.qr-card { background:white; padding:15px; margin:15px 0; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.1); display:flex; align-items:center; gap:20px; flex-wrap:wrap;}
-.qr-info { flex:1; min-width:150px; }
-.qr-actions button { margin-right:5px; padding:5px 10px; border-radius:4px; border:none; cursor:pointer; }
-.download { background:#2196F3; color:white; }
-.delete { background:#f44336; color:white; }
+body { font-family: Arial, sans-serif; background:#f9f9f9; margin:0; }
+header { background:#4CAF50; color:white; padding:15px; display:flex; justify-content:space-between; }
+main { max-width:800px; margin:auto; padding:20px; }
+input, button { width:100%; padding:10px; margin:5px 0; }
+.qr-card { background:white; padding:15px; margin:10px 0; border-radius:6px; }
 </style>
 </head>
+
 <body>
 <header>
-  <h1>QR Dashboard</h1>
+  <h2>QR Dashboard</h2>
   <button onclick="logout()">Logout</button>
 </header>
 
 <main>
-<h3>Create a new QR code</h3>
-<input type="text" id="qrLabel" placeholder="Label (optional)">
-<input type="text" id="qrText" placeholder="Enter URL or text">
-<button onclick="createQRCode()">Create QR Code</button>
+  <h3>Create QR Code</h3>
+  <input id="qrLabel" placeholder="Label (optional)">
+  <input id="qrText" placeholder="URL or text">
+  <button onclick="createQRCode()">Create QR</button>
 
-<h3>Your QR Codes</h3>
-<div id="qrList"></div>
+  <h3>Your QR Codes</h3>
+  <div id="qrList"></div>
 </main>
 
 <script>
@@ -42,140 +39,84 @@ const firebaseConfig = {
   apiKey: "AIzaSyDPfjv3ZZ18ELPiC2Jc-z_yk86ejOvAad4",
   authDomain: "qr-tracker-4b53e.firebaseapp.com",
   projectId: "qr-tracker-4b53e",
-  storageBucket: "qr-tracker-4b53e.firebasestorage.app",
+  storageBucket: "qr-tracker-4b53e.appspot.com",
   messagingSenderId: "329754045002",
   appId: "1:329754045002:web:922633ad6ada8018a1d4b3"
 };
+
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
-
 let user;
 
-// Check login
+// Auth check
 auth.onAuthStateChanged(u => {
-  if(!u) return location.href='login.html';
+  if (!u) location.href = 'login.html';
   user = u;
   loadQRCodesRealtime();
 });
 
 // Logout
-function logout() { auth.signOut().then(()=>location.href='login.html'); }
+function logout() {
+  auth.signOut().then(() => location.href='login.html');
+}
 
-// Create QR code
+// CREATE QR
 function createQRCode() {
-  const text = document.getElementById('qrText').value.trim();
-  const label = document.getElementById('qrLabel').value.trim();
+  const text = qrText.value.trim();
+  const label = qrLabel.value.trim();
 
-  if (!text) {
-    alert("Enter a URL or text");
-    return;
-  }
+  if (!text) return alert("Enter a URL or text");
 
-  if (!user) {
-    alert("User not logged in");
-    return;
-  }
-
-  // 🔥 CREATE FIRESTORE DOCUMENT
-  const docRef = db.collection('qrcodes').doc();
-
-  docRef.set({
-    uid: user.uid,     // REQUIRED
-    text: text,
-    label: label,
+  db.collection('qrcodes').add({
+    uid: user.uid,
+    text,
+    label,
     scans: 0
   })
   .then(() => {
-    console.log("✅ QR CREATED SUCCESSFULLY");
-
-    // Clear inputs
-    document.getElementById('qrText').value = '';
-    document.getElementById('qrLabel').value = '';
+    console.log("✅ QR CREATED");
+    qrText.value = '';
+    qrLabel.value = '';
   })
   .catch(err => {
-    console.error("❌ FIRESTORE ERROR:", err);
+    console.error("❌ Firestore error:", err);
     alert(err.message);
   });
 }
 
-
-  // Generate a new doc to get a real ID
-  const docRef = db.collection('qrcodes').doc();
-  const qrId = docRef.id;
-
-  // Firestore write
-  docRef.set({
-    uid: user.uid,
-    text: text,
-    label: label,
-    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    scans: 0
-  })
-  .then(()=>{
-    // Clear input fields
-    document.getElementById('qrText').value='';
-    document.getElementById('qrLabel').value='';
-  })
-  .catch(err => alert("Error creating QR: " + err.message));
-}
-
-// Real-time dashboard
-<script>
+// LOAD QRS
 function loadQRCodesRealtime() {
   db.collection('qrcodes')
     .where('uid','==',user.uid)
     .onSnapshot(snapshot => {
-      console.log("Snapshot size:", snapshot.size);
-
-      const container = document.getElementById('qrList');
-      container.innerHTML = '';
-
+      qrList.innerHTML = '';
       snapshot.forEach(doc => {
-        console.log("QR FOUND:", doc.id);
-
-        const data = doc.data();
-        const qrId = doc.id;
-
+        const d = doc.data();
         const div = document.createElement('div');
         div.className = 'qr-card';
+
         div.innerHTML = `
-          <div class="qr-info">
-            <strong>Label:</strong> ${data.label || "—"}<br>
-            <strong>Text/URL:</strong> ${data.text}<br>
-            <strong>Scans:</strong> ${data.scans}
-          </div>
-          <canvas id="canvas-${qrId}"></canvas>
-          <button onclick="deleteQRCode('${qrId}')">Delete</button>
+          <strong>${d.label || 'No label'}</strong><br>
+          ${d.text}<br>
+          Scans: ${d.scans}<br>
+          <canvas id="c-${doc.id}"></canvas>
+          <button onclick="deleteQRCode('${doc.id}')">Delete</button>
         `;
-        container.appendChild(div);
+
+        qrList.appendChild(div);
 
         QRCode.toCanvas(
-          document.getElementById(\`canvas-\${qrId}\`),
-          window.location.origin + '/scan.html?id=' + qrId
-    
-
-
-        // Generate QR code for the dashboard
-        QRCode.toCanvas(document.getElementById(`canvas-${qrId}`), window.location.origin+'/scan.html?id='+qrId, err=>{
-          if(err) console.error(err);
-        });
+          document.getElementById(`c-${doc.id}`),
+          location.origin + '/scan.html?id=' + doc.id
+        );
       });
     });
 }
 
-// Download QR
-function downloadQRCode(id){
-  const canvas=document.getElementById(`canvas-${id}`);
-  const link=document.createElement('a');
-  link.href=canvas.toDataURL("image/png");
-  link.download='qr.png';
-  link.click();
-}
-
-// Delete QR
-function deleteQRCode(id){
-  if(confirm("Delete this QR code?")) db.collection('qrcodes').doc(id).delete();
+// DELETE
+function deleteQRCode(id) {
+  db.collection('qrcodes').doc(id).delete();
 }
 </script>
 </body>
