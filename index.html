@@ -15,10 +15,13 @@
 <style>
 body { font-family: Arial,sans-serif; background:#f9f9f9; margin:0; }
 header { background:#4CAF50; color:white; padding:15px; display:flex; justify-content:space-between; }
-main { max-width:800px; margin:auto; padding:20px; }
+main { max-width:900px; margin:auto; padding:20px; }
 input, button { width:100%; padding:10px; margin:5px 0; }
 .qr-card { background:white; padding:15px; margin:10px 0; border-radius:6px; }
 .qr-actions button { width:auto; margin-right:5px; }
+.scan-table { width:100%; border-collapse:collapse; margin-top:10px; }
+.scan-table th, .scan-table td { border:1px solid #ccc; padding:5px; text-align:left; }
+.scan-table th { background:#f0f0f0; }
 </style>
 </head>
 <body>
@@ -72,7 +75,6 @@ function createQRCode() {
 
   if (!label) return alert("Enter a label for the QR code.");
 
-  // First create Firestore doc
   db.collection('qrcodes').add({
     uid: user.uid,
     text: '', // placeholder
@@ -80,19 +82,12 @@ function createQRCode() {
     scans: 0,
     lastScan: null
   }).then(docRef => {
-
-    // If user entered a full URL, use it; otherwise, generate scan.html link
     if (text && /^https?:\/\//.test(text)) {
-      // External URL
       text = text;
     } else {
-      // GitHub Pages scan.html link
       text = `${githubPagesUrl}/scan.html?id=${docRef.id}`;
     }
-
-    // Update Firestore doc with final URL
     return docRef.update({ text });
-
   }).then(() => {
     qrLabel.value = '';
     qrText.value = '';
@@ -108,28 +103,47 @@ function loadQRCodesRealtime() {
         const d = doc.data();
         const div = document.createElement('div');
         div.className='qr-card';
-
-        // Format lastScan timestamp
-        let lastScanStr = 'Never';
-        if (d.lastScan) {
-          const date = d.lastScan.toDate();
-          lastScanStr = date.toLocaleString();
-        }
-
+        div.id = `qr-${doc.id}`;
         div.innerHTML = `
           <strong>${d.label || 'Untitled QR'}</strong><br>
-          Scans: <span id="count-${doc.id}">${d.scans}</span><br>
-          Last Scan: <span id="last-${doc.id}">${lastScanStr}</span><br><br>
+          Scans: <span id="scancount-${doc.id}">${d.scans || 0}</span><br>
+          Last Scan: <span id="lastscan-${doc.id}">${d.lastScan ? d.lastScan.toDate().toLocaleString() : 'Never'}</span><br><br>
           <canvas id="c-${doc.id}"></canvas><br><br>
           <div class="qr-actions">
             <button onclick="downloadQRCode('${doc.id}')">Download</button>
             <button onclick="deleteQRCode('${doc.id}')">Delete</button>
           </div>
+          <h4>Scan Log</h4>
+          <table class="scan-table" id="table-${doc.id}">
+            <thead><tr><th>#</th><th>Date & Time</th></tr></thead>
+            <tbody></tbody>
+          </table>
         `;
         qrList.appendChild(div);
 
         // Generate QR code
         QRCode.toCanvas(document.getElementById(`c-${doc.id}`), d.text);
+
+        // ---------------------- LIVE SCAN COUNT ----------------------
+        db.collection('qrcodes').doc(doc.id)
+          .collection('scans').orderBy('timestamp','desc')
+          .onSnapshot(scanSnapshot => {
+            const tbody = document.querySelector(`#table-${doc.id} tbody`);
+            tbody.innerHTML = '';
+            let count = 0;
+            scanSnapshot.forEach(snap => {
+              count++;
+              const tr = document.createElement('tr');
+              tr.innerHTML = `<td>${count}</td><td>${snap.data().timestamp.toDate().toLocaleString()}</td>`;
+              tbody.appendChild(tr);
+            });
+            document.getElementById(`scancount-${doc.id}`).textContent = count;
+            if(scanSnapshot.docs[0]){
+              document.getElementById(`lastscan-${doc.id}`).textContent = scanSnapshot.docs[0].data().timestamp.toDate().toLocaleString();
+            } else {
+              document.getElementById(`lastscan-${doc.id}`).textContent = 'Never';
+            }
+          });
       });
     });
 }
