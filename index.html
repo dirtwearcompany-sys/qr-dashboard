@@ -19,12 +19,9 @@ main { max-width:900px; margin:auto; padding:20px; }
 input, button { width:100%; padding:10px; margin:5px 0; }
 .qr-card { background:white; padding:15px; margin:10px 0; border-radius:6px; }
 .qr-actions button { width:auto; margin-right:5px; }
-.scans-table { width:100%; border-collapse:collapse; margin-top:10px; }
-.scans-table th, .scans-table td { border:1px solid #ccc; padding:6px; text-align:left; }
-.scans-table th { background:#eee; }
+.scan-list { margin-top:10px; border-top:1px solid #ddd; padding-top:10px; font-size:14px; color:#555; }
 </style>
 </head>
-
 <body>
 <header>
   <h2>QR Dashboard</h2>
@@ -33,7 +30,7 @@ input, button { width:100%; padding:10px; margin:5px 0; }
 
 <main>
   <h3>Create QR Code</h3>
-  <input id="qrLabel" placeholder="Label (optional)">
+  <input id="qrLabel" placeholder="Label (required)">
   <input id="qrText" placeholder="Full URL (optional, leave blank to generate scan.html)">
   <button onclick="createQRCode()">Create QR</button>
 
@@ -42,7 +39,7 @@ input, button { width:100%; padding:10px; margin:5px 0; }
 </main>
 
 <script>
-// ---------------------- FIREBASE CONFIG ----------------------
+// ---------------- FIREBASE CONFIG ----------------
 const firebaseConfig = {
   apiKey: "AIzaSyDPfjv3ZZ18ELPiC2Jc-z_yk86ejOvAad4",
   authDomain: "qr-tracker-4b53e.firebaseapp.com",
@@ -56,20 +53,20 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 let user;
 
-// ---------------------- CONFIG ----------------------
+// ---------------- CONFIG ----------------
 const githubPagesUrl = "https://dirtwearcompany-sys.github.io/qr.dashboard";
 
-// ---------------------- AUTH CHECK ----------------------
+// ---------------- AUTH CHECK ----------------
 auth.onAuthStateChanged(u => {
   if (!u) location.href='login.html';
   user = u;
   loadQRCodesRealtime();
 });
 
-// ---------------------- LOGOUT ----------------------
+// ---------------- LOGOUT ----------------
 function logout() { auth.signOut().then(()=>location.href='login.html'); }
 
-// ---------------------- CREATE QR CODE ----------------------
+// ---------------- CREATE QR CODE ----------------
 function createQRCode() {
   const label = qrLabel.value.trim();
   let text = qrText.value.trim();
@@ -80,24 +77,20 @@ function createQRCode() {
     uid: user.uid,
     text: '', // placeholder
     label,
-    scans: 0
+    scans: 0,
+    lastScan: null
   }).then(docRef => {
-
-    if (text && /^https?:\/\//.test(text)) {
-      text = text; // external URL
-    } else {
+    if (!text || !/^https?:\/\//.test(text)) {
       text = `${githubPagesUrl}/scan.html?id=${docRef.id}`;
     }
-
     return docRef.update({ text });
-
   }).then(() => {
     qrLabel.value = '';
     qrText.value = '';
   }).catch(err => alert(err.message));
 }
 
-// ---------------------- LOAD QR CODES ----------------------
+// ---------------- LOAD QR CODES ----------------
 function loadQRCodesRealtime() {
   db.collection('qrcodes').where('uid','==',user.uid).onSnapshot(snapshot => {
     qrList.innerHTML = '';
@@ -106,54 +99,49 @@ function loadQRCodesRealtime() {
       const div = document.createElement('div');
       div.className='qr-card';
 
-      // QR card HTML with scans table
       div.innerHTML = `
         <strong>${d.label || 'Untitled QR'}</strong><br>
-        Total Scans: ${d.scans || 0}<br><br>
+        Scans: <span id="count-${doc.id}">${d.scans}</span><br>
+        Last Scan: <span id="last-${doc.id}">${d.lastScan ? new Date(d.lastScan.seconds*1000).toLocaleString() : 'Never'}</span><br><br>
         <canvas id="c-${doc.id}"></canvas><br><br>
         <div class="qr-actions">
           <button onclick="downloadQRCode('${doc.id}')">Download</button>
           <button onclick="deleteQRCode('${doc.id}')">Delete</button>
         </div>
-        <h4>Scan History</h4>
-        <table class="scans-table" id="scans-${doc.id}">
-          <thead>
-            <tr><th>#</th><th>Date & Time</th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+        <div class="scan-list" id="scan-list-${doc.id}">Loading scan history...</div>
       `;
       qrList.appendChild(div);
 
-      // Generate QR code
+      // Generate QR code pointing to final URL
       QRCode.toCanvas(document.getElementById(`c-${doc.id}`), d.text);
 
-      // Load scans live
-      loadScans(doc.id);
+      // ---------------- LIVE SCAN LIST ----------------
+      db.collection('scans')
+        .where('qrId','==',doc.id)
+        .orderBy('timestamp','desc')
+        .onSnapshot(snap => {
+          const listDiv = document.getElementById(`scan-list-${doc.id}`);
+          if (snap.empty) {
+            listDiv.innerHTML = 'No scans yet.';
+          } else {
+            listDiv.innerHTML = snap.docs.map(sd => {
+              const t = sd.data().timestamp;
+              const dt = t ? new Date(t.seconds*1000).toLocaleString() : 'Unknown';
+              return `Scanned at: ${dt}`;
+            }).join('<br>');
+          }
+
+          // Update scan count & last scan
+          const countElem = document.getElementById(`count-${doc.id}`);
+          const lastElem = document.getElementById(`last-${doc.id}`);
+          countElem.textContent = snap.size;
+          lastElem.textContent = snap.docs[0]?.data().timestamp ? new Date(snap.docs[0].data().timestamp.seconds*1000).toLocaleString() : 'Never';
+        });
     });
   });
 }
 
-// ---------------------- LOAD SCANS LIVE ----------------------
-function loadScans(qrId) {
-  const tbody = document.querySelector(`#scans-${qrId} tbody`);
-  db.collection('scans').where('qrId','==',qrId)
-    .orderBy('timestamp','desc')
-    .onSnapshot(snapshot => {
-      tbody.innerHTML = '';
-      let count = 1;
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        const ts = data.timestamp ? data.timestamp.toDate() : new Date();
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${count}</td><td>${ts.toLocaleString()}</td>`;
-        tbody.appendChild(tr);
-        count++;
-      });
-    });
-}
-
-// ---------------------- DOWNLOAD QR ----------------------
+// ---------------- DOWNLOAD QR ----------------
 function downloadQRCode(id) {
   const canvas = document.getElementById(`c-${id}`);
   const link = document.createElement('a');
@@ -162,7 +150,7 @@ function downloadQRCode(id) {
   link.click();
 }
 
-// ---------------------- DELETE QR ----------------------
+// ---------------- DELETE QR ----------------
 function deleteQRCode(id) {
   if (confirm("Delete this QR code?")) {
     db.collection('qrcodes').doc(id).delete();
