@@ -6,7 +6,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <style>
-body { font-family:Arial,sans-serif; background:#f4f4f4; display:flex; justify-content:center; align-items:center; height:100vh; text-align:center; }
+body { font-family: Arial, sans-serif; background:#f4f4f4; display:flex; justify-content:center; align-items:center; height:100vh; text-align:center; }
 .container { background:white; padding:30px; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.1); max-width:400px; }
 h1 { color:#4CAF50; }
 p { font-size:18px; }
@@ -22,6 +22,7 @@ a { color:#2196F3; font-weight:bold; text-decoration:none; }
 </div>
 
 <script>
+// ---------------------- FIREBASE CONFIG ----------------------
 const firebaseConfig = {
   apiKey: "AIzaSyDPfjv3ZZ18ELPiC2Jc-z_yk86ejOvAad4",
   authDomain: "qr-tracker-4b53e.firebaseapp.com",
@@ -33,9 +34,11 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+// ---------------------- CONFIG ----------------------
 // GitHub Pages repo folder name
-const repoFolder = "qr.dashboard"; // <-- your repo name
+const repoFolder = "qr.dashboard"; // <-- replace with your repo name
 
+// ---------------------- GET QR ID ----------------------
 const params = new URLSearchParams(window.location.search);
 const id = params.get('id');
 
@@ -50,20 +53,20 @@ if (!id) {
     }
     const data = doc.data();
 
-    // Increment scan counter
-    docRef.update({scans: firebase.firestore.FieldValue.increment(1)}).catch(console.error);
+    // ---------------------- INCREMENT SCANS ----------------------
+    docRef.update({ scans: firebase.firestore.FieldValue.increment(1) }).catch(console.error);
 
-    // Build the redirect URL using origin + repo folder
+    // ---------------------- BUILD REDIRECT URL ----------------------
     let redirectUrl;
     if (data.text.match(/^https?:\/\//)) {
-      // Full URL stored in Firestore
+      // Full URL already stored in Firestore
       redirectUrl = data.text;
     } else {
-      // Relative URL stored in Firestore
+      // Relative URL stored in Firestore, prepend origin + repo folder
       redirectUrl = window.location.origin + "/" + repoFolder + "/" + data.text.replace(/^\/+/,'');
     }
 
-    // Countdown redirect
+    // ---------------------- COUNTDOWN REDIRECT ----------------------
     let countdown = 3;
     const countdownElem = document.getElementById('countdown');
     const interval = setInterval(() => {
@@ -75,10 +78,11 @@ if (!id) {
       }
     }, 1000);
 
-    // Fallback link
+    // ---------------------- FALLBACK LINK ----------------------
     const fallbackLink = document.getElementById('redirectLink');
     fallbackLink.href = redirectUrl;
     document.getElementById('fallback').style.display = 'block';
+
   }).catch(err => {
     document.getElementById('message').textContent = "An error occurred.";
     console.error(err);
