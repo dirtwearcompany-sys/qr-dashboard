@@ -42,10 +42,10 @@ if (!snap.exists()) {
 // INCREMENT COUNTERS
 const today = new Date().toISOString().slice(0,10);
 
-await updateDoc(ref, {
-  scans: increment(1),
-  [`daily.${today}`]: increment(1)
-});
+//await updateDoc(ref, {
+  //scans: increment(1),
+  //[`daily.${today}`]: increment(1)
+//});
 
 // REDIRECT
 window.location.href = snap.data().url;
