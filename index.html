@@ -73,23 +73,20 @@ function createQRCode() {
 
   if (!label) return alert("Enter a label for the QR code.");
 
-  // First create Firestore doc with placeholders
   db.collection('qrcodes').add({
     uid: user.uid,
-    text: '', // placeholder, will update after ID known
+    text: '',
     label,
     scans: 0,
     lastScan: null,
     locked: false
   }).then(docRef => {
-
     // Generate final URL
     if (text && /^https?:\/\//.test(text)) {
       text = text; // external URL
     } else {
       text = `${githubPagesUrl}/scan.html?id=${docRef.id}`; // internal scan.html
     }
-
     return docRef.update({ text });
   }).then(() => {
     qrLabel.value = '';
@@ -97,39 +94,57 @@ function createQRCode() {
   }).catch(err => alert(err.message));
 }
 
-// ---------------------- LOAD QR CODES ----------------------
+// ---------------------- LOAD QR CODES (LIVE) ----------------------
 function loadQRCodesRealtime() {
-  db.collection('qrcodes').where('uid','==',user.uid).onSnapshot(snapshot => {
-    qrList.innerHTML = '';
-    snapshot.forEach(doc => {
-      const d = doc.data();
-      const div = document.createElement('div');
-      div.className='qr-card';
+  db.collection('qrcodes').where('uid','==',user.uid)
+    .onSnapshot(snapshot => {
+      qrList.innerHTML = '';
 
-      // Format last scan timestamp
-      const lastScan = d.lastScan ? d.lastScan.toDate().toLocaleString() : 'Never';
+      snapshot.forEach(doc => {
+        const d = doc.data();
+        const div = document.createElement('div');
+        div.className='qr-card';
 
-      div.innerHTML = `
-        <strong>${d.label || 'Untitled QR'}</strong>
-        ${d.locked ? '<span class="locked-label">[LOCKED]</span>' : ''}
-        <br>
-        Scans: ${d.scans} <br>
-        Last scan: ${lastScan} <br><br>
-        <canvas id="c-${doc.id}"></canvas><br><br>
-        <div class="qr-actions">
-          <button onclick="downloadQRCode('${doc.id}')">Download</button>
-          <button onclick="deleteQRCode('${doc.id}')">Delete</button>
-          <button onclick="toggleLock('${doc.id}', ${d.locked})">
-            ${d.locked ? 'Unlock' : 'Lock'}
-          </button>
-        </div>
-      `;
-      qrList.appendChild(div);
+        // Format last scan timestamp
+        const lastScan = d.lastScan ? d.lastScan.toDate().toLocaleString() : 'Never';
 
-      // Generate QR code
-      QRCode.toCanvas(document.getElementById(`c-${doc.id}`), d.text);
+        div.innerHTML = `
+          <strong>${d.label || 'Untitled QR'}</strong>
+          ${d.locked ? '<span class="locked-label">[LOCKED]</span>' : ''}
+          <br>
+          Scans: <span id="scans-${doc.id}">${d.scans}</span> <br>
+          Last scan: <span id="lastscan-${doc.id}">${lastScan}</span> <br><br>
+          <canvas id="c-${doc.id}"></canvas><br><br>
+          <div class="qr-actions">
+            <button onclick="downloadQRCode('${doc.id}')">Download</button>
+            <button onclick="deleteQRCode('${doc.id}')">Delete</button>
+            <button onclick="toggleLock('${doc.id}', ${d.locked})">
+              ${d.locked ? 'Unlock' : 'Lock'}
+            </button>
+          </div>
+        `;
+        qrList.appendChild(div);
+
+        // Generate QR code
+        QRCode.toCanvas(document.getElementById(`c-${doc.id}`), d.text);
+
+        // Live scan count updates
+        const unsubscribe = db.collection('scans')
+          .where('qrId', '==', doc.id)
+          .orderBy('timestamp', 'desc')
+          .onSnapshot(scanSnap => {
+            const scans = scanSnap.size;
+            document.getElementById(`scans-${doc.id}`).textContent = scans;
+
+            if (scans > 0) {
+              const latestScan = scanSnap.docs[0].data().timestamp.toDate().toLocaleString();
+              document.getElementById(`lastscan-${doc.id}`).textContent = latestScan;
+            } else {
+              document.getElementById(`lastscan-${doc.id}`).textContent = 'Never';
+            }
+          });
+      });
     });
-  });
 }
 
 // ---------------------- DOWNLOAD QR ----------------------
