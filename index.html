@@ -41,7 +41,6 @@ input, button { width:100%; padding:10px; margin:5px 0; }
 </main>
 
 <script>
-// ---------------------- FIREBASE CONFIG ----------------------
 const firebaseConfig = {
   apiKey: "AIzaSyDPfjv3ZZ18ELPiC2Jc-z_yk86ejOvAad4",
   authDomain: "qr-tracker-4b53e.firebaseapp.com",
@@ -55,36 +54,30 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 let user;
 
-// ---------------------- CONFIG ----------------------
 const githubPagesUrl = "https://dirtwearcompany-sys.github.io/qr.dashboard";
 
-// ---------------------- AUTH CHECK ----------------------
 auth.onAuthStateChanged(u => {
   if (!u) location.href='login.html';
   user = u;
   loadQRCodesRealtime();
 });
 
-// ---------------------- LOGOUT ----------------------
 function logout() { auth.signOut().then(()=>location.href='login.html'); }
 
-// ---------------------- CREATE QR CODE ----------------------
 function createQRCode() {
   const label = qrLabel.value.trim();
   let text = qrText.value.trim();
 
-  if (!label) return alert("Enter a label for the QR code.");
+  if (!label) return alert("Enter a label.");
 
   db.collection('qrcodes').add({
     uid: user.uid,
-    text: '', // placeholder
+    text: '',
     label,
     scans: 0,
     lastScan: null
   }).then(docRef => {
-    if (text && /^https?:\/\//.test(text)) {
-      text = text;
-    } else {
+    if (!text || !/^https?:\/\//.test(text)) {
       text = `${githubPagesUrl}/scan.html?id=${docRef.id}`;
     }
     return docRef.update({ text });
@@ -94,7 +87,6 @@ function createQRCode() {
   }).catch(err => alert(err.message));
 }
 
-// ---------------------- LOAD QR CODES ----------------------
 function loadQRCodesRealtime() {
   db.collection('qrcodes').where('uid','==',user.uid)
     .onSnapshot(snapshot => {
@@ -102,7 +94,7 @@ function loadQRCodesRealtime() {
       snapshot.forEach(doc => {
         const d = doc.data();
         const div = document.createElement('div');
-        div.className='qr-card';
+        div.className = 'qr-card';
         div.id = `qr-${doc.id}`;
         div.innerHTML = `
           <strong>${d.label || 'Untitled QR'}</strong><br>
@@ -121,10 +113,9 @@ function loadQRCodesRealtime() {
         `;
         qrList.appendChild(div);
 
-        // Generate QR code
         QRCode.toCanvas(document.getElementById(`c-${doc.id}`), d.text);
 
-        // ---------------------- LIVE SCAN COUNT ----------------------
+        // Live scan updates
         db.collection('qrcodes').doc(doc.id)
           .collection('scans').orderBy('timestamp','desc')
           .onSnapshot(scanSnapshot => {
@@ -148,7 +139,6 @@ function loadQRCodesRealtime() {
     });
 }
 
-// ---------------------- DOWNLOAD QR ----------------------
 function downloadQRCode(id) {
   const canvas = document.getElementById(`c-${id}`);
   const link = document.createElement('a');
@@ -157,7 +147,6 @@ function downloadQRCode(id) {
   link.click();
 }
 
-// ---------------------- DELETE QR ----------------------
 function deleteQRCode(id) {
   if (confirm("Delete this QR code?")) {
     db.collection('qrcodes').doc(id).delete();
