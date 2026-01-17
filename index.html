@@ -106,10 +106,13 @@ function loadQRCodesRealtime() {
 
         qrList.appendChild(div);
 
-        // ✅ FIXED QR GENERATION LINE: uses relative path
+        // ✅ FULL URL QR CODE: includes origin + repo folder
+        const repoFolder = "qr.dashboard"; // <-- Replace with your GitHub repo name
+        const fullUrl = location.origin + '/' + repoFolder + '/scan.html?id=' + doc.id;
+
         QRCode.toCanvas(
           document.getElementById(`c-${doc.id}`),
-          './scan.html?id=' + doc.id
+          fullUrl
         );
       });
     });
