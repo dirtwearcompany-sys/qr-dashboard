@@ -99,6 +99,32 @@ function appendQR(id, label, url) {
   qrDiv.className = "qrcode";
 
   const qrImg = document.createElement("img");
+function appendQR(id, label, url, scans = 0) {
+  const qrDiv = document.createElement("div");
+  qrDiv.className = "qrcode";
+
+  const qrImg = document.createElement("img");
+  QRCode.toDataURL(`${baseURL}?id=${id}`, { width: 100 }, function (err, urlData) {
+    if (err) console.error(err);
+    qrImg.src = urlData;
+  });
+
+  const text = document.createElement("span");
+  text.textContent = `${label} → ${url} | Scans: ${scans}`;
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.className = "deleteBtn";
+  deleteBtn.textContent = "Delete";
+  deleteBtn.onclick = async () => {
+    await deleteDoc(doc(db, "qrcodes", id));
+    qrDiv.remove();
+  };
+
+  qrDiv.appendChild(qrImg);
+  qrDiv.appendChild(text);
+  qrDiv.appendChild(deleteBtn);
+  qrList.appendChild(qrDiv);
+}
 
   // Use the global QRCode library
   QRCode.toDataURL(`${baseURL}?id=${id}`, { width: 100 }, function (err, urlData) {
