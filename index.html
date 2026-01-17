@@ -66,8 +66,39 @@ function logout() { auth.signOut().then(()=>location.href='login.html'); }
 function createQRCode() {
   const text = document.getElementById('qrText').value.trim();
   const label = document.getElementById('qrLabel').value.trim();
-  if(!text) return alert("Enter a URL or text");
-  if(!user) return alert("User not logged in");
+
+  if (!text) {
+    alert("Enter a URL or text");
+    return;
+  }
+
+  if (!user) {
+    alert("User not logged in");
+    return;
+  }
+
+  // 🔥 CREATE FIRESTORE DOCUMENT
+  const docRef = db.collection('qrcodes').doc();
+
+  docRef.set({
+    uid: user.uid,     // REQUIRED
+    text: text,
+    label: label,
+    scans: 0
+  })
+  .then(() => {
+    console.log("✅ QR CREATED SUCCESSFULLY");
+
+    // Clear inputs
+    document.getElementById('qrText').value = '';
+    document.getElementById('qrLabel').value = '';
+  })
+  .catch(err => {
+    console.error("❌ FIRESTORE ERROR:", err);
+    alert(err.message);
+  });
+}
+
 
   // Generate a new doc to get a real ID
   const docRef = db.collection('qrcodes').doc();
@@ -90,13 +121,19 @@ function createQRCode() {
 }
 
 // Real-time dashboard
+<script>
 function loadQRCodesRealtime() {
-  db.collection('qrcodes').where('uid','==',user.uid)
-    .orderBy('createdAt','desc')
-    .onSnapshot(snapshot=>{
+  db.collection('qrcodes')
+    .where('uid','==',user.uid)
+    .onSnapshot(snapshot => {
+      console.log("Snapshot size:", snapshot.size);
+
       const container = document.getElementById('qrList');
-      container.innerHTML='';
-      snapshot.forEach(doc=>{
+      container.innerHTML = '';
+
+      snapshot.forEach(doc => {
+        console.log("QR FOUND:", doc.id);
+
         const data = doc.data();
         const qrId = doc.id;
 
@@ -106,15 +143,18 @@ function loadQRCodesRealtime() {
           <div class="qr-info">
             <strong>Label:</strong> ${data.label || "—"}<br>
             <strong>Text/URL:</strong> ${data.text}<br>
-            <strong>Scans:</strong> <span id="scan-${qrId}">${data.scans}</span>
+            <strong>Scans:</strong> ${data.scans}
           </div>
           <canvas id="canvas-${qrId}"></canvas>
-          <div class="qr-actions">
-            <button class="download" onclick="downloadQRCode('${qrId}')">Download</button>
-            <button class="delete" onclick="deleteQRCode('${qrId}')">Delete</button>
-          </div>
+          <button onclick="deleteQRCode('${qrId}')">Delete</button>
         `;
         container.appendChild(div);
+
+        QRCode.toCanvas(
+          document.getElementById(\`canvas-\${qrId}\`),
+          window.location.origin + '/scan.html?id=' + qrId
+    
+
 
         // Generate QR code for the dashboard
         QRCode.toCanvas(document.getElementById(`canvas-${qrId}`), window.location.origin+'/scan.html?id='+qrId, err=>{
