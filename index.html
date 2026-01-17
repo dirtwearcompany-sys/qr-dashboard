@@ -47,35 +47,35 @@ const firebaseConfig = {
   messagingSenderId: "329754045002",
   appId: "1:329754045002:web:922633ad6ada8018a1d4b3"
 };
-
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 let user;
 
-// AUTH CHECK
+// ---------------- AUTH ----------------
 auth.onAuthStateChanged(u => {
   if (!u) location.href='login.html';
   user = u;
   loadQRCodesRealtime();
 });
 
-// LOGOUT
-function logout() { auth.signOut().then(()=>location.href='login.html'); }
+// ---------------- LOGOUT ----------------
+function logout() { 
+  auth.signOut().then(()=>location.href='login.html'); 
+}
 
-// CREATE QR
+// ---------------- CREATE QR ----------------
 function createQRCode() {
   const text = qrText.value.trim();
   const label = qrLabel.value.trim();
 
-  // Enforce full URL
   if (!/^https?:\/\//.test(text)) {
     return alert("Enter a full URL starting with http:// or https://");
   }
 
   db.collection('qrcodes').add({
     uid: user.uid,
-    text,          // Full URL
+    text,  // store full URL
     label,
     scans: 0
   })
@@ -83,7 +83,7 @@ function createQRCode() {
   .catch(err => alert(err.message));
 }
 
-// LOAD QR CODES
+// ---------------- LOAD QR CODES ----------------
 function loadQRCodesRealtime() {
   db.collection('qrcodes')
     .where('uid','==',user.uid)
@@ -104,10 +104,9 @@ function loadQRCodesRealtime() {
         `;
         qrList.appendChild(div);
 
-        // Generate QR code pointing to scan.html on GitHub Pages
-        const githubPagesUrl = "https://dirtwearcompany-sys.github.io/qr.dashboard/scan.html?id=<doc.id>
-";
-        const fullScanUrl = githubPagesUrl + '/scan.html?id=' + doc.id;
+        // ---------------- QR CODE GENERATION ----------------
+        const githubPagesBase = "https://dirtwearcompany-sys.github.io/qr.dashboard";
+        const fullScanUrl = githubPagesBase + '/scan.html?id=' + doc.id;
 
         QRCode.toCanvas(
           document.getElementById(`c-${doc.id}`),
@@ -117,7 +116,7 @@ function loadQRCodesRealtime() {
     });
 }
 
-// DOWNLOAD QR
+// ---------------- DOWNLOAD QR ----------------
 function downloadQRCode(id) {
   const canvas = document.getElementById(`c-${id}`);
   const link = document.createElement('a');
@@ -126,7 +125,7 @@ function downloadQRCode(id) {
   link.click();
 }
 
-// DELETE QR
+// ---------------- DELETE QR ----------------
 function deleteQRCode(id) {
   if (confirm("Delete this QR code?")) {
     db.collection('qrcodes').doc(id).delete();
