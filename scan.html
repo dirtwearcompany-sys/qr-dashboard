@@ -3,46 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <title>QR Redirect</title>
-
 <style>
-body {
-  font-family: Arial, sans-serif;
-  background:#f4f4f4;
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  height:100vh;
-  text-align:center;
-}
-.container {
-  background:white;
-  padding:30px;
-  border-radius:8px;
-  box-shadow:0 2px 10px rgba(0,0,0,0.1);
-  max-width:400px;
-}
+body { font-family:Arial,sans-serif; background:#f4f4f4; display:flex; justify-content:center; align-items:center; height:100vh; text-align:center; }
+.container { background:white; padding:30px; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.1); max-width:400px; }
 h1 { color:#4CAF50; }
-.locked { color:red; font-weight:bold; }
+p { font-size:18px; }
 a { color:#2196F3; font-weight:bold; text-decoration:none; }
+.locked { color:red; font-weight:bold; }
 </style>
 </head>
-
 <body>
 <div class="container">
-  <h1 id="title">Redirecting…</h1>
-  <p id="message">Please wait</p>
-  <p id="countdown"></p>
-  <p id="fallback" style="display:none;">
-    If not redirected, <a id="redirectLink" href="#">click here</a>.
-  </p>
+<h1 id="title">Redirecting...</h1>
+<p id="message">Please wait while we redirect you.</p>
+<p id="countdown"></p>
+<p id="fallback" style="display:none;">If not redirected, <a id="redirectLink" href="#">click here</a>.</p>
 </div>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
 <script>
-/* ---------------- FIREBASE CONFIG ---------------- */
+// ---------------------- FIREBASE CONFIG ----------------------
 const firebaseConfig = {
   apiKey: "AIzaSyDPfjv3ZZ18ELPiC2Jc-z_yk86ejOvAad4",
   authDomain: "qr-tracker-4b53e.firebaseapp.com",
@@ -51,67 +32,69 @@ const firebaseConfig = {
   messagingSenderId: "329754045002",
   appId: "1:329754045002:web:922633ad6ada8018a1d4b3"
 };
-
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-/* ---------------- GET QR ID ---------------- */
+// ---------------------- GET QR ID ----------------------
 const params = new URLSearchParams(window.location.search);
-const qrId = params.get('id');
+const id = params.get('id');
 
-if (!qrId) {
+if (!id) {
   document.getElementById('message').textContent = "Invalid QR Code";
-  throw new Error("No QR ID");
-}
-
-/* ---------------- LOAD QR DATA ---------------- */
-const ref = db.collection('qrcodes').doc(qrId);
-
-ref.get().then(doc => {
-  if (!doc.exists) {
-    document.getElementById('message').textContent = "QR Code not found";
-    return;
-  }
-
-  const data = doc.data();
-
-  /* ---------- SAVE SCAN (ALWAYS WORKS) ---------- */
-  ref.set({
-    scans: firebase.firestore.FieldValue.increment(1),
-    lastScan: firebase.firestore.FieldValue.serverTimestamp()
-  }, { merge: true });
-
-  /* ---------- IF LOCKED ---------- */
-  if (data.locked === true) {
-    document.getElementById('title').textContent = "QR Code Locked";
-    document.getElementById('message').textContent =
-      "This QR code has been disabled by the owner.";
-    return;
-  }
-
-  /* ---------- REDIRECT ---------- */
-  const redirectUrl = data.text;
-
-  let seconds = 3;
-  const countdown = document.getElementById('countdown');
-
-  const timer = setInterval(() => {
-    countdown.textContent = `Redirecting in ${seconds}…`;
-    seconds--;
-    if (seconds < 0) {
-      clearInterval(timer);
-      window.location.href = redirectUrl;
+} else {
+  const docRef = db.collection('qrcodes').doc(id);
+  docRef.get().then(doc => {
+    if (!doc.exists) {
+      document.getElementById('message').textContent = "QR Code not found.";
+      return;
     }
-  }, 1000);
 
-  // Fallback
-  document.getElementById('redirectLink').href = redirectUrl;
-  document.getElementById('fallback').style.display = 'block';
+    const data = doc.data();
 
-}).catch(err => {
-  document.getElementById('message').textContent = "Error loading QR";
-  console.error(err);
-});
+    // If QR is locked, stop redirect
+    if (data.locked) {
+      document.getElementById('title').textContent = "This QR Code is locked";
+      document.getElementById('message').classList.add('locked');
+      document.getElementById('message').textContent = "This QR code cannot be used right now.";
+      return;
+    }
+
+    const redirectUrl = data.text;
+
+    // ---------------------- RECORD SCAN ----------------------
+    db.collection('scans').add({
+      qrId: id,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(console.error);
+
+    // Increment scans in main QR doc
+    docRef.update({
+      scans: firebase.firestore.FieldValue.increment(1),
+      lastScan: firebase.firestore.FieldValue.serverTimestamp()
+    }).catch(console.error);
+
+    // ---------------------- COUNTDOWN REDIRECT ----------------------
+    let countdown = 3;
+    const countdownElem = document.getElementById('countdown');
+    const interval = setInterval(() => {
+      countdownElem.textContent = `Redirecting in ${countdown}...`;
+      countdown--;
+      if (countdown < 0) {
+        clearInterval(interval);
+        window.location.href = redirectUrl;
+      }
+    }, 1000);
+
+    // Fallback link
+    const fallbackLink = document.getElementById('redirectLink');
+    fallbackLink.href = redirectUrl;
+    document.getElementById('fallback').style.display = 'block';
+
+  }).catch(err => {
+    document.getElementById('message').textContent = "An error occurred.";
+    console.error(err);
+  });
+}
 </script>
 </body>
 </html>
