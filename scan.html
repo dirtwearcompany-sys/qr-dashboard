@@ -42,28 +42,29 @@ if (!id) {
   document.getElementById('message').textContent = "Invalid QR Code";
 } else {
   const docRef = db.collection('qrcodes').doc(id);
-  docRef.get().then(doc => {
+
+  db.runTransaction(async (transaction) => {
+    const doc = await transaction.get(docRef);
     if (!doc.exists) {
       document.getElementById('message').textContent = "QR Code not found.";
-      return;
+      throw "No QR document!";
     }
-    const data = doc.data();
 
-    // ---------------------- INCREMENT SCANS ----------------------
-    const now = firebase.firestore.Timestamp.now();
-    docRef.update({
+    const data = doc.data();
+    const now = firebase.firestore.FieldValue.serverTimestamp();
+
+    // Increment scans and update lastScan
+    transaction.update(docRef, {
       scans: firebase.firestore.FieldValue.increment(1),
       lastScan: now
-    }).catch(console.error);
+    });
 
-    // ---------------------- ADD SCAN LOG ----------------------
-    docRef.collection('scans').add({
-      timestamp: now
-    }).catch(console.error);
+    // Add a new document in subcollection 'scans'
+    const scanRef = docRef.collection('scans').doc();
+    transaction.set(scanRef, { timestamp: now });
 
-    // ---------------------- BUILD REDIRECT URL ----------------------
-    const redirectUrl = data.text;
-
+    return data.text; // return redirect URL
+  }).then((redirectUrl) => {
     // ---------------------- COUNTDOWN REDIRECT ----------------------
     let countdown = 3;
     const countdownElem = document.getElementById('countdown');
@@ -80,9 +81,9 @@ if (!id) {
     const fallbackLink = document.getElementById('redirectLink');
     fallbackLink.href = redirectUrl;
     document.getElementById('fallback').style.display = 'block';
-  }).catch(err => {
-    document.getElementById('message').textContent = "An error occurred.";
+  }).catch((err) => {
     console.error(err);
+    document.getElementById('message').textContent = "An error occurred.";
   });
 }
 </script>
