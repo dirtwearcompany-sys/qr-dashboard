@@ -55,7 +55,7 @@ let user;
 auth.onAuthStateChanged(u => {
   if (!u) return location.href = 'login.html';
   user = u;
-  loadQRCodes();
+  loadQRCodesRealtime();
 });
 
 function logout() {
@@ -76,14 +76,14 @@ function createQRCode() {
   }).then(() => {
     document.getElementById('qrText').value = '';
     document.getElementById('qrLabel').value = '';
-    loadQRCodes();
   });
 }
 
-function loadQRCodes() {
+// Real-time listener
+function loadQRCodesRealtime() {
   db.collection('qrcodes').where('uid','==',user.uid)
     .orderBy('createdAt','desc')
-    .get().then(snapshot => {
+    .onSnapshot(snapshot => {
       const container = document.getElementById('qrList');
       container.innerHTML = '';
       snapshot.forEach(doc => {
@@ -96,7 +96,7 @@ function loadQRCodes() {
           <div class="qr-info">
             <strong>Label:</strong> ${data.label || "—"}<br>
             <strong>Text/URL:</strong> ${data.text}<br>
-            <strong>Scans:</strong> ${data.scans}
+            <strong>Scans:</strong> <span id="scan-${qrId}">${data.scans}</span>
           </div>
           <canvas id="canvas-${qrId}"></canvas>
           <div class="qr-actions">
@@ -124,7 +124,7 @@ function downloadQRCode(id) {
 
 function deleteQRCode(id) {
   if(confirm("Delete this QR code?")) {
-    db.collection('qrcodes').doc(id).delete().then(loadQRCodes);
+    db.collection('qrcodes').doc(id).delete();
   }
 }
 </script>
