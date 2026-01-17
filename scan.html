@@ -3,27 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <title>QR Redirect</title>
-<style>
-body { font-family: Arial,sans-serif; background:#f4f4f4; display:flex; justify-content:center; align-items:center; height:100vh; text-align:center; }
-.container { background:white; padding:30px; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.1); max-width:400px; }
-h1 { color:#4CAF50; }
-p { font-size:18px; }
-a { color:#2196F3; font-weight:bold; text-decoration:none; }
-</style>
-</head>
-<body>
-<div class="container">
-  <h1>Redirecting...</h1>
-  <p id="message">Please wait while we redirect you.</p>
-  <p id="countdown"></p>
-  <p id="fallback" style="display:none;">If not redirected, <a id="redirectLink" href="#">click here</a>.</p>
-</div>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background:#f4f4f4;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  height:100vh;
+  text-align:center;
+}
+.container {
+  background:white;
+  padding:30px;
+  border-radius:8px;
+  box-shadow:0 2px 10px rgba(0,0,0,0.1);
+  max-width:400px;
+}
+h1 { color:#4CAF50; }
+</style>
+</head>
+
+<body>
+<div class="container">
+  <h1>Redirecting…</h1>
+  <p id="status">Please wait</p>
+</div>
+
 <script>
-// ---------------------- FIREBASE CONFIG ----------------------
+// ---------------- FIREBASE ----------------
 const firebaseConfig = {
   apiKey: "AIzaSyDPfjv3ZZ18ELPiC2Jc-z_yk86ejOvAad4",
   authDomain: "qr-tracker-4b53e.firebaseapp.com",
@@ -32,54 +44,59 @@ const firebaseConfig = {
   messagingSenderId: "329754045002",
   appId: "1:329754045002:web:922633ad6ada8018a1d4b3"
 };
+
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-// ---------------------- GET QR ID ----------------------
+// ---------------- GET QR ID ----------------
 const params = new URLSearchParams(window.location.search);
-const id = params.get('id');
+const id = params.get("id");
 
 if (!id) {
-  document.getElementById('message').textContent = "Invalid QR Code";
-} else {
-  const docRef = db.collection('qrcodes').doc(id);
-  
-  docRef.get().then(doc => {
-    if (!doc.exists) {
-      document.getElementById('message').textContent = "QR Code not found.";
-      return;
-    }
-
-    const data = doc.data();
-
-    // ---------------------- INCREMENT SCANS ----------------------
-    docRef.update({ scans: firebase.firestore.FieldValue.increment(1) }).catch(console.error);
-
-    // ---------------------- REDIRECT URL ----------------------
-    const redirectUrl = data.text; // Must be full URL (http:// or https://)
-
-    // ---------------------- COUNTDOWN REDIRECT ----------------------
-    let countdown = 3;
-    const countdownElem = document.getElementById('countdown');
-    const interval = setInterval(() => {
-      countdownElem.textContent = `Redirecting in ${countdown}...`;
-      countdown--;
-      if (countdown < 0) {
-        clearInterval(interval);
-        window.location.href = redirectUrl;
-      }
-    }, 1000);
-
-    // ---------------------- FALLBACK LINK ----------------------
-    const fallbackLink = document.getElementById('redirectLink');
-    fallbackLink.href = redirectUrl;
-    document.getElementById('fallback').style.display = 'block';
-
-  }).catch(err => {
-    document.getElementById('message').textContent = "An error occurred.";
-    console.error(err);
-  });
+  document.getElementById("status").textContent = "Invalid QR Code";
+  throw new Error("No QR ID");
 }
+
+// ---------------- LOOKUP QR ----------------
+const qrRef = db.collection("qrcodes").doc(id);
+
+qrRef.get().then(doc => {
+  if (!doc.exists) {
+    document.getElementById("status").textContent = "QR Code not found";
+    return;
+  }
+
+  const data = doc.data();
+  const destination = data.text;
+
+  if (!destination) {
+    document.getElementById("status").textContent = "No destination URL";
+    return;
+  }
+
+  const now = new Date();
+
+  // ---------------- LOG SCAN ----------------
+  qrRef.collection("scans").add({
+    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+    readable: now.toLocaleString()
+  });
+
+  // ---------------- UPDATE COUNTERS ----------------
+  qrRef.update({
+    scans: firebase.firestore.FieldValue.increment(1),
+    lastScan: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  // ---------------- REDIRECT ----------------
+  setTimeout(() => {
+    window.location.href = destination;
+  }, 1500);
+
+}).catch(err => {
+  document.getElementById("status").textContent = "Error loading QR";
+  console.error(err);
+});
 </script>
 </body>
 </html>
