@@ -1,4 +1,5 @@
-<!DOCTYPE html>
+
+  <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -23,11 +24,11 @@
 <h2>Existing QR Codes</h2>
 <div id="qrList"></div>
 
+<!-- Firebase -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import QRCode from "https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js";
 
 // 🔥 Firebase config
 const firebaseConfig = {
@@ -40,7 +41,6 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Only allow logged-in users
 onAuthStateChanged(auth, (user) => {
   if (!user) {
     window.location.href = "login.html";
@@ -59,7 +59,7 @@ const labelInput = document.getElementById("label");
 const urlInput = document.getElementById("url");
 const createBtn = document.getElementById("createBtn");
 
-// 🔥 Replace with your real GitHub Pages scan.html URL
+// 🔥 Your GitHub Pages scan.html URL
 const baseURL = "https://dirtwearcompany-sys.github.io/qr-dashboard/scan.html";
 
 // Create QR
@@ -67,7 +67,7 @@ createBtn.addEventListener("click", async () => {
   const label = labelInput.value.trim();
   const url = urlInput.value.trim();
   if (!label || !url) return alert("Fill both fields");
-  if (!url.startsWith("http")) return alert("URL must start with http or https");
+  if (!url.startsWith("http")) return alert("URL must start with http:// or https://");
 
   const docRef = await addDoc(collection(db, "qrcodes"), {
     label,
@@ -79,4 +79,50 @@ createBtn.addEventListener("click", async () => {
   appendQR(docRef.id, label, url);
 
   labelInput.value = "";
-  u
+  urlInput.value = "";
+});
+
+// Load all QR codes
+async function loadQRCodes() {
+  qrList.innerHTML = "";
+  const querySnap = await getDocs(collection(db, "qrcodes"));
+  querySnap.forEach(docSnap => {
+    const data = docSnap.data();
+    appendQR(docSnap.id, data.label, data.url);
+  });
+}
+
+// Append a QR code element
+function appendQR(id, label, url) {
+  const qrDiv = document.createElement("div");
+  qrDiv.className = "qrcode";
+
+  const qrImg = document.createElement("img");
+  QRCode.toCanvas(document.createElement("canvas"), `${baseURL}?id=${id}`, function (error, canvas) {
+    if (error) console.error(error);
+    qrImg.src = canvas.toDataURL("image/png");
+  });
+
+  const text = document.createElement("span");
+  text.textContent = `${label} → ${url}`;
+
+  const deleteBtn = document.createElement("button");
+  deleteBtn.className = "deleteBtn";
+  deleteBtn.textContent = "Delete";
+  deleteBtn.onclick = async () => {
+    await deleteDoc(doc(db, "qrcodes", id));
+    qrDiv.remove();
+  };
+
+  qrDiv.appendChild(qrImg);
+  qrDiv.appendChild(text);
+  qrDiv.appendChild(deleteBtn);
+  qrList.appendChild(qrDiv);
+}
+</script>
+
+<!-- Include QRCode library as a global script -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+</body>
+</html>
+
