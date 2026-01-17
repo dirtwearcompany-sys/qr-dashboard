@@ -56,24 +56,25 @@ const db = firebase.firestore();
 
 let user;
 
-// AUTH
+// Auth check
 auth.onAuthStateChanged(u => {
   if(!u) return location.href='login.html';
   user = u;
   loadQRCodesRealtime();
 });
 
-// LOGOUT
+// Logout
 function logout() { auth.signOut().then(()=>location.href='login.html'); }
 
-// CREATE QR
+// Create QR code
 function createQRCode() {
   const text = document.getElementById('qrText').value.trim();
   const label = document.getElementById('qrLabel').value.trim();
   if(!text) return alert("Enter a URL or text");
   if(!user) return alert("User not logged in");
 
-  db.collection('qrcodes').doc().set({
+  const docRef = db.collection('qrcodes').doc();
+  docRef.set({
     uid: user.uid,
     text: text,
     label: label,
@@ -83,12 +84,12 @@ function createQRCode() {
   .then(()=>{
     document.getElementById('qrText').value='';
     document.getElementById('qrLabel').value='';
-    document.getElementById('previewCanvas').getContext('2d').clearRect(0,0,200,200);
+    // ✅ Do NOT clear preview canvas, so the QR stays visible
   })
   .catch(err => alert("Error creating QR: "+err.message));
 }
 
-// LIVE PREVIEW
+// Live QR preview
 function updatePreview() {
   const text = document.getElementById('qrText').value.trim();
   const canvas = document.getElementById('previewCanvas');
@@ -98,7 +99,7 @@ function updatePreview() {
   });
 }
 
-// REAL-TIME DASHBOARD
+// Real-time dashboard
 function loadQRCodesRealtime() {
   db.collection('qrcodes').where('uid','==',user.uid)
     .orderBy('createdAt','desc')
@@ -113,7 +114,7 @@ function loadQRCodesRealtime() {
 
         div.innerHTML = `
           <div class="qr-info">
-            <strong>Label:</strong> ${data.label||'—'}<br>
+            <strong>Label:</strong> ${data.label || "—"}<br>
             <strong>Text/URL:</strong> ${data.text}<br>
             <strong>Scans:</strong> <span id="scan-${qrId}">${data.scans}</span>
           </div>
@@ -125,6 +126,7 @@ function loadQRCodesRealtime() {
         `;
         container.appendChild(div);
 
+        // Generate QR code for dashboard
         QRCode.toCanvas(document.getElementById(`canvas-${qrId}`), window.location.origin+'/scan.html?id='+qrId, err=>{
           if(err) console.error(err);
         });
@@ -132,7 +134,7 @@ function loadQRCodesRealtime() {
     });
 }
 
-// DOWNLOAD
+// Download QR code
 function downloadQRCode(id){
   const canvas=document.getElementById(`canvas-${id}`);
   const link=document.createElement('a');
@@ -141,7 +143,7 @@ function downloadQRCode(id){
   link.click();
 }
 
-// DELETE
+// Delete QR code
 function deleteQRCode(id){
   if(confirm("Delete this QR code?")) db.collection('qrcodes').doc(id).delete();
 }
