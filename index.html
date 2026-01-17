@@ -1,104 +1,107 @@
 
-                   <!DOCTYPE html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>QR Scan Dashboard</title>
-  <style>
-    body { font-family: Arial; padding: 20px; }
-    h1 { display: inline-block; margin-right: 20px; }
-    #logoutBtn { padding: 5px 10px; font-size: 14px; cursor: pointer; }
-    #qrContainer { display: flex; flex-wrap: wrap; margin-top: 20px; }
-    .qr-card { display: inline-block; border: 1px solid #ccc; padding: 10px; margin: 10px; border-radius: 8px; text-align: center; width: 180px; }
-    canvas { margin-top: 10px; }
-    button { margin-top: 5px; display: block; width: 100%; }
-  </style>
+<meta charset="UTF-8">
+<title>QR Dashboard</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 </head>
 <body>
-<h1>QR Scan Dashboard</h1>
-<button id="logoutBtn">Logout</button>
-<div id="qrContainer">Checking login status...</div>
+<h1>QR Code Dashboard</h1>
+<button onclick="logout()">Logout</button>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import QRCode from "https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js";
+<h3>Create a new QR code</h3>
+<input type="text" id="qrText" placeholder="Enter URL or text">
+<button onclick="createQRCode()">Create QR Code</button>
 
-// 🔥 Replace with your Firebase config
+<h3>Your QR Codes</h3>
+<div id="qrList"></div>
+
+<script>
 const firebaseConfig = {
   apiKey: "AIzaSyDPfjv3ZZ18ELPiC2Jc-z_yk86ejOvAad4",
   authDomain: "qr-tracker-4b53e.firebaseapp.com",
-  projectId: "qr-tracker-4b53e"
+  projectId: "qr-tracker-4b53e",
+  storageBucket: "qr-tracker-4b53e.firebasestorage.app",
+  messagingSenderId: "329754045002",
+  appId: "1:329754045002:web:922633ad6ada8018a1d4b3"
 };
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
+let user;
 
-const qrContainer = document.getElementById("qrContainer");
-const logoutBtn = document.getElementById("logoutBtn");
-
-// Logout button
-logoutBtn.onclick = async () => {
-  await signOut(auth);
-  window.location.href = "login.html";
-};
-
-// Auth check
-onAuthStateChanged(auth, async (user) => {
-  if(!user){
-    console.log("No user logged in, redirecting...");
-    window.location.href = "login.html";
-    return;
-  }
-
-  qrContainer.innerHTML = "Loading QR codes...";
-
-  const snapshot = await getDocs(collection(db, "qr_codes"));
-  qrContainer.innerHTML = ""; // Clear loading text
-
-  snapshot.forEach(async (docSnap) => {
-    const data = docSnap.data();
-    const codeId = docSnap.id;
-
-    const card = document.createElement("div");
-    card.className = "qr-card";
-
-    const title = document.createElement("div");
-    title.textContent = `${codeId}: ${data.count || 0} scans`;
-    card.appendChild(title);
-
-    const qrCanvas = document.createElement("canvas");
-    card.appendChild(qrCanvas);
-    const scanURL = `${window.location.origin}/scan.html?id=${codeId}`;
-    await QRCode.toCanvas(qrCanvas, scanURL, { width: 150 });
-
-    // Download button
-    const downloadBtn = document.createElement("button");
-    downloadBtn.textContent = "Download QR";
-    downloadBtn.onclick = () => {
-      const link = document.createElement("a");
-      link.href = qrCanvas.toDataURL("image/png");
-      link.download = `${codeId}.png`;
-      link.click();
-    };
-    card.appendChild(downloadBtn);
-
-    // Delete button
-    const deleteBtn = document.createElement("button");
-    deleteBtn.textContent = "Delete QR";
-    deleteBtn.onclick = async () => {
-      if(confirm(`Delete QR code ${codeId}?`)){
-        await deleteDoc(doc(db, "qr_codes", codeId));
-        card.remove();
-      }
-    };
-    card.appendChild(deleteBtn);
-
-    qrContainer.appendChild(card);
-  });
+auth.onAuthStateChanged(u => {
+  if (!u) return location.href = 'login.html';
+  user = u;
+  loadQRCodes();
 });
+
+function logout() {
+  auth.signOut().then(() => location.href = 'login.html');
+}
+
+function createQRCode() {
+  const text = document.getElementById('qrText').value;
+  if(!text) return alert("Enter something to generate QR code");
+  
+  const docRef = db.collection('qrcodes').doc();
+  docRef.set({
+    uid: user.uid,
+    text: text,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    scans: 0
+  }).then(() => {
+    loadQRCodes();
+    document.getElementById('qrText').value = '';
+  });
+}
+
+function loadQRCodes() {
+  db.collection('qrcodes').where('uid','==',user.uid)
+    .orderBy('createdAt','desc')
+    .get().then(snapshot => {
+      const container = document.getElementById('qrList');
+      container.innerHTML = '';
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const div = document.createElement('div');
+        div.style.border = "1px solid black";
+        div.style.padding = "10px";
+        div.style.margin = "10px 0";
+        const qrId = doc.id;
+        div.innerHTML = `
+          <p>Text/URL: ${data.text}</p>
+          <p>Scans: ${data.scans}</p>
+          <canvas id="canvas-${qrId}"></canvas><br>
+          <button onclick="downloadQRCode('${qrId}')">Download</button>
+          <button onclick="deleteQRCode('${qrId}')">Delete</button>
+        `;
+        container.appendChild(div);
+        QRCode.toCanvas(document.getElementById(`canvas-${qrId}`), window.location.origin + '/scan.html?id=' + qrId, function (error) {
+          if (error) console.error(error);
+        });
+      });
+    });
+}
+
+function downloadQRCode(id) {
+  const canvas = document.getElementById(`canvas-${id}`);
+  const link = document.createElement('a');
+  link.href = canvas.toDataURL("image/png");
+  link.download = 'qr.png';
+  link.click();
+}
+
+function deleteQRCode(id) {
+  if(confirm("Delete this QR code?")) {
+    db.collection('qrcodes').doc(id).delete().then(loadQRCodes);
+  }
+}
 </script>
 </body>
 </html>
