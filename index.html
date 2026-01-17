@@ -106,10 +106,10 @@ function loadQRCodesRealtime() {
 
         qrList.appendChild(div);
 
-        // IMPORTANT: GitHub Pages path includes repo name
+        // ✅ FIXED QR GENERATION LINE: uses relative path
         QRCode.toCanvas(
           document.getElementById(`c-${doc.id}`),
-          location.origin + '/qr.dashboard/scan.html?id=' + doc.id
+          './scan.html?id=' + doc.id
         );
       });
     });
