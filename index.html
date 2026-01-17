@@ -4,13 +4,16 @@
 <meta charset="UTF-8">
 <title>QR Dashboard</title>
 
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<!-- QR Code -->
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
 <style>
-body { font-family: Arial, sans-serif; background:#f9f9f9; margin:0; }
+body { font-family: Arial,sans-serif; background:#f9f9f9; margin:0; }
 header { background:#4CAF50; color:white; padding:15px; display:flex; justify-content:space-between; }
 main { max-width:800px; margin:auto; padding:20px; }
 input, button { width:100%; padding:10px; margin:5px 0; }
@@ -28,7 +31,7 @@ input, button { width:100%; padding:10px; margin:5px 0; }
 <main>
   <h3>Create QR Code</h3>
   <input id="qrLabel" placeholder="Label (optional)">
-  <input id="qrText" placeholder="URL or text">
+  <input id="qrText" placeholder="Full URL (must start with https://)">
   <button onclick="createQRCode()">Create QR</button>
 
   <h3>Your QR Codes</h3>
@@ -52,48 +55,44 @@ let user;
 
 // AUTH CHECK
 auth.onAuthStateChanged(u => {
-  if (!u) location.href = 'login.html';
+  if (!u) location.href='login.html';
   user = u;
   loadQRCodesRealtime();
 });
 
 // LOGOUT
-function logout() {
-  auth.signOut().then(() => location.href='login.html');
-}
+function logout() { auth.signOut().then(()=>location.href='login.html'); }
 
 // CREATE QR
 function createQRCode() {
   const text = qrText.value.trim();
   const label = qrLabel.value.trim();
 
-  if (!text) return alert("Enter a URL or text");
+  // Enforce full URL
+  if (!/^https?:\/\//.test(text)) {
+    return alert("Enter a full URL starting with http:// or https://");
+  }
 
   db.collection('qrcodes').add({
     uid: user.uid,
-    text,
+    text,          // Full URL
     label,
     scans: 0
   })
-  .then(() => {
-    qrText.value = '';
-    qrLabel.value = '';
-  })
+  .then(() => { qrText.value=''; qrLabel.value=''; })
   .catch(err => alert(err.message));
 }
 
-// LOAD QRS
+// LOAD QR CODES
 function loadQRCodesRealtime() {
   db.collection('qrcodes')
     .where('uid','==',user.uid)
     .onSnapshot(snapshot => {
-      qrList.innerHTML = '';
-
+      qrList.innerHTML='';
       snapshot.forEach(doc => {
         const d = doc.data();
         const div = document.createElement('div');
-        div.className = 'qr-card';
-
+        div.className='qr-card';
         div.innerHTML = `
           <strong>${d.label || 'Untitled QR'}</strong><br>
           Scans: ${d.scans}<br><br>
@@ -103,19 +102,15 @@ function loadQRCodesRealtime() {
             <button onclick="deleteQRCode('${doc.id}')">Delete</button>
           </div>
         `;
-
         qrList.appendChild(div);
 
-        // ✅ FULL URL QR CODE: includes origin + repo folder
-        // Replace with your actual GitHub Pages URL
-        const githubPagesUrl = "https://dirtwearcompany-sys.github.io/qr.dashboard/scan.html?id=...";
+        // Generate QR code pointing to scan.html on GitHub Pages
+        const githubPagesUrl = "https://dirtwearcompany-sys.github.io/qr.dashboard";
+        const fullScanUrl = githubPagesUrl + '/scan.html?id=' + doc.id;
 
-        const fullUrl = githubPagesUrl + '/scan.html?id=' + doc.id;
-
-  
         QRCode.toCanvas(
           document.getElementById(`c-${doc.id}`),
-          fullUrl
+          fullScanUrl
         );
       });
     });
