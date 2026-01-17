@@ -107,9 +107,12 @@ function loadQRCodesRealtime() {
         qrList.appendChild(div);
 
         // ✅ FULL URL QR CODE: includes origin + repo folder
-        const repoFolder = "qr.dashboard"; // <-- Replace with your GitHub repo name
-        const fullUrl = location.origin + '/' + repoFolder + '/scan.html?id=' + doc.id;
+        // Replace with your actual GitHub Pages URL
+        const githubPagesUrl = "https://dirtwearcompany-sys.github.io/qr.dashboard";
 
+        const fullUrl = githubPagesUrl + '/scan.html?id=' + doc.id;
+
+  
         QRCode.toCanvas(
           document.getElementById(`c-${doc.id}`),
           fullUrl
