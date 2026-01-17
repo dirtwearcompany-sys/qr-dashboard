@@ -75,22 +75,28 @@ function createQRCode() {
 
   if (!label) return alert("Enter a label for the QR code.");
 
-  // Create Firestore doc with placeholder
+  // Create Firestore doc first
   db.collection('qrcodes').add({
     uid: user.uid,
-    text: '',
+    text: '', // placeholder
     label,
     scans: 0,
     lastScan: null
   }).then(docRef => {
-    // If user entered full URL, use it; else generate scan.html link
-    if (!text || !/^https?:\/\//.test(text)) {
+    // Determine final URL
+    if (text && /^https?:\/\//.test(text)) {
+      text = text;
+    } else {
       text = `${githubPagesUrl}/scan.html?id=${docRef.id}`;
     }
-    return docRef.update({ text });
-  }).then(() => {
+
+    // Update Firestore with final URL
+    return docRef.update({ text }).then(() => docRef.id);
+  }).then((docId) => {
+    // No need to reload all codes; Firestore onSnapshot will handle live update
     qrLabel.value = '';
     qrText.value = '';
+    console.log(`QR code ${docId} created!`);
   }).catch(err => alert(err.message));
 }
 
