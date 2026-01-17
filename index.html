@@ -73,7 +73,16 @@ function createQRCode() {
   if(!text) return alert("Enter a URL or text");
   if(!user) return alert("User not logged in");
 
+  // Step 1: Generate Firestore doc first to get real ID
   const docRef = db.collection('qrcodes').doc();
+  const qrId = docRef.id;
+
+  // Step 2: Draw the QR code immediately on the preview canvas with real ID
+  QRCode.toCanvas(document.getElementById('previewCanvas'), window.location.origin + '/scan.html?id=' + qrId, err => {
+    if(err) console.error(err);
+  });
+
+  // Step 3: Write to Firestore
   docRef.set({
     uid: user.uid,
     text: text,
@@ -82,18 +91,19 @@ function createQRCode() {
     scans: 0
   })
   .then(()=>{
+    // ✅ Keep preview visible, clear only input fields
     document.getElementById('qrText').value='';
     document.getElementById('qrLabel').value='';
-    // ✅ Do NOT clear preview canvas, so the QR stays visible
   })
-  .catch(err => alert("Error creating QR: "+err.message));
+  .catch(err => alert("Error creating QR: " + err.message));
 }
 
-// Live QR preview
+// Live QR preview (before creating)
 function updatePreview() {
   const text = document.getElementById('qrText').value.trim();
   const canvas = document.getElementById('previewCanvas');
   if(!text) return canvas.getContext('2d').clearRect(0,0,200,200);
+  // Use a temporary preview ID (won't affect real creation)
   QRCode.toCanvas(canvas, window.location.origin+'/scan.html?id=preview-'+encodeURIComponent(text), err=>{
     if(err) console.error(err);
   });
