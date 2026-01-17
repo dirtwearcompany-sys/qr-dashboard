@@ -15,6 +15,7 @@ header { background:#4CAF50; color:white; padding:15px; display:flex; justify-co
 main { max-width:800px; margin:auto; padding:20px; }
 input, button { width:100%; padding:10px; margin:5px 0; }
 .qr-card { background:white; padding:15px; margin:10px 0; border-radius:6px; }
+.qr-actions button { width:auto; margin-right:5px; }
 </style>
 </head>
 
@@ -49,14 +50,14 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 let user;
 
-// Auth check
+// AUTH CHECK
 auth.onAuthStateChanged(u => {
   if (!u) location.href = 'login.html';
   user = u;
   loadQRCodesRealtime();
 });
 
-// Logout
+// LOGOUT
 function logout() {
   auth.signOut().then(() => location.href='login.html');
 }
@@ -75,14 +76,10 @@ function createQRCode() {
     scans: 0
   })
   .then(() => {
-    console.log("✅ QR CREATED");
     qrText.value = '';
     qrLabel.value = '';
   })
-  .catch(err => {
-    console.error("❌ Firestore error:", err);
-    alert(err.message);
-  });
+  .catch(err => alert(err.message));
 }
 
 // LOAD QRS
@@ -91,32 +88,47 @@ function loadQRCodesRealtime() {
     .where('uid','==',user.uid)
     .onSnapshot(snapshot => {
       qrList.innerHTML = '';
+
       snapshot.forEach(doc => {
         const d = doc.data();
         const div = document.createElement('div');
         div.className = 'qr-card';
 
         div.innerHTML = `
-          <strong>${d.label || 'No label'}</strong><br>
-          ${d.text}<br>
-          Scans: ${d.scans}<br>
-          <canvas id="c-${doc.id}"></canvas>
-          <button onclick="deleteQRCode('${doc.id}')">Delete</button>
+          <strong>${d.label || 'Untitled QR'}</strong><br>
+          Scans: ${d.scans}<br><br>
+          <canvas id="c-${doc.id}"></canvas><br><br>
+          <div class="qr-actions">
+            <button onclick="downloadQRCode('${doc.id}')">Download</button>
+            <button onclick="deleteQRCode('${doc.id}')">Delete</button>
+          </div>
         `;
 
         qrList.appendChild(div);
 
+        // IMPORTANT: GitHub Pages path includes repo name
         QRCode.toCanvas(
           document.getElementById(`c-${doc.id}`),
-          location.origin + '/scan.html?id=' + doc.id
+          location.origin + '/qr.dashboard/scan.html?id=' + doc.id
         );
       });
     });
 }
 
-// DELETE
+// DOWNLOAD QR
+function downloadQRCode(id) {
+  const canvas = document.getElementById(`c-${id}`);
+  const link = document.createElement('a');
+  link.href = canvas.toDataURL('image/png');
+  link.download = 'qr-code.png';
+  link.click();
+}
+
+// DELETE QR
 function deleteQRCode(id) {
-  db.collection('qrcodes').doc(id).delete();
+  if (confirm("Delete this QR code?")) {
+    db.collection('qrcodes').doc(id).delete();
+  }
 }
 </script>
 </body>
