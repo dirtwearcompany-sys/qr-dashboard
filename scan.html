@@ -9,12 +9,11 @@ body { font-family:Arial,sans-serif; background:#f4f4f4; display:flex; justify-c
 h1 { color:#4CAF50; }
 p { font-size:18px; }
 a { color:#2196F3; font-weight:bold; text-decoration:none; }
-.locked { color:red; font-weight:bold; }
 </style>
 </head>
 <body>
 <div class="container">
-<h1 id="title">Redirecting...</h1>
+<h1>Redirecting...</h1>
 <p id="message">Please wait while we redirect you.</p>
 <p id="countdown"></p>
 <p id="fallback" style="display:none;">If not redirected, <a id="redirectLink" href="#">click here</a>.</p>
@@ -23,7 +22,6 @@ a { color:#2196F3; font-weight:bold; text-decoration:none; }
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script>
-// ---------------------- FIREBASE CONFIG ----------------------
 const firebaseConfig = {
   apiKey: "AIzaSyDPfjv3ZZ18ELPiC2Jc-z_yk86ejOvAad4",
   authDomain: "qr-tracker-4b53e.firebaseapp.com",
@@ -35,7 +33,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-// ---------------------- GET QR ID ----------------------
+// Get QR ID from URL
 const params = new URLSearchParams(window.location.search);
 const id = params.get('id');
 
@@ -44,43 +42,31 @@ if (!id) {
 } else {
   const docRef = db.collection('qrcodes').doc(id);
 
-  // Use transaction to ensure atomic update
-  db.runTransaction(async (transaction) => {
-    const docSnap = await transaction.get(docRef);
-
-    if (!docSnap.exists) {
+  docRef.get().then(doc => {
+    if (!doc.exists) {
       document.getElementById('message').textContent = "QR Code not found.";
       return;
     }
 
-    const data = docSnap.data();
+    const data = doc.data();
 
-    if (data.locked) {
-      document.getElementById('title').textContent = "This QR Code is locked";
-      document.getElementById('message').classList.add('locked');
-      document.getElementById('message').textContent = "This QR code cannot be used right now.";
-      return;
-    }
-
-    // Increment main scan counter and update lastScan
-    transaction.update(docRef, {
-      scans: (data.scans || 0) + 1,
+    // ------------------ INCREMENT SCAN COUNT ------------------
+    docRef.update({
+      scans: firebase.firestore.FieldValue.increment(1),
       lastScan: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    }).catch(console.error);
 
-    // Record each scan in a separate collection
-    transaction.set(db.collection('scans').doc(), {
+    // ------------------ LOG EACH SCAN ------------------
+    db.collection('scans').add({
       qrId: id,
       timestamp: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    }).catch(console.error);
 
-    return data.text; // return redirect URL
-  }).then((redirectUrl) => {
-    if (!redirectUrl) return;
-
-    // ---------------------- COUNTDOWN REDIRECT ----------------------
+    // ------------------ REDIRECT ------------------
+    const redirectUrl = data.text; // must be full URL
     let countdown = 3;
     const countdownElem = document.getElementById('countdown');
+
     const interval = setInterval(() => {
       countdownElem.textContent = `Redirecting in ${countdown}...`;
       countdown--;
@@ -95,8 +81,8 @@ if (!id) {
     fallbackLink.href = redirectUrl;
     document.getElementById('fallback').style.display = 'block';
   }).catch(err => {
-    console.error(err);
     document.getElementById('message').textContent = "An error occurred.";
+    console.error(err);
   });
 }
 </script>
