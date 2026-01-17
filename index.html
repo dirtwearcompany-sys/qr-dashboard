@@ -1,5 +1,5 @@
 
-<!DOCTYPE html>
+                   <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -21,7 +21,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, deleteDoc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 import QRCode from "https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js";
 
@@ -39,25 +39,24 @@ const auth = getAuth(app);
 const qrContainer = document.getElementById("qrContainer");
 const logoutBtn = document.getElementById("logoutBtn");
 
-// Logout functionality
+// Logout button
 logoutBtn.onclick = async () => {
   await signOut(auth);
   window.location.href = "login.html";
 };
 
-// ✅ Wait for auth state
+// Auth check
 onAuthStateChanged(auth, async (user) => {
   if(!user){
-    // Not logged in, redirect to login page
+    console.log("No user logged in, redirecting...");
     window.location.href = "login.html";
     return;
   }
 
   qrContainer.innerHTML = "Loading QR codes...";
 
-  // Fetch QR codes from Firestore
   const snapshot = await getDocs(collection(db, "qr_codes"));
-  qrContainer.innerHTML = ""; // clear loading message
+  qrContainer.innerHTML = ""; // Clear loading text
 
   snapshot.forEach(async (docSnap) => {
     const data = docSnap.data();
@@ -70,7 +69,6 @@ onAuthStateChanged(auth, async (user) => {
     title.textContent = `${codeId}: ${data.count || 0} scans`;
     card.appendChild(title);
 
-    // QR code canvas
     const qrCanvas = document.createElement("canvas");
     card.appendChild(qrCanvas);
     const scanURL = `${window.location.origin}/scan.html?id=${codeId}`;
