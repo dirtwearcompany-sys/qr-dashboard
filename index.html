@@ -22,6 +22,7 @@ input, button { width:100%; padding:10px; margin:5px 0; }
 .scan-table { width:100%; border-collapse:collapse; margin-top:10px; }
 .scan-table th, .scan-table td { border:1px solid #ccc; padding:5px; text-align:left; }
 .scan-table th { background:#f0f0f0; }
+.locked { opacity:0.6; }
 </style>
 </head>
 <body>
@@ -82,39 +83,17 @@ function createQRCode() {
     lastScan: null,
     locked: false
   }).then(docRef => {
+    // Determine URL
     if (text && /^https?:\/\//.test(text)) {
       text = text;
     } else {
       text = `${githubPagesUrl}/scan.html?id=${docRef.id}`;
     }
-    return docRef.update({ text }).then(() => docRef.id);
-  }).then(docId => {
+    return docRef.update({ text });
+  }).then(() => {
     qrLabel.value = '';
     qrText.value = '';
-    console.log(`QR code ${docId} created!`);
   }).catch(err => alert(err.message));
-}
-
-// ---------------------- TOGGLE LOCK/UNLOCK ----------------------
-function toggleLock(id, current) {
-  const newState = !current;
-  db.collection('qrcodes').doc(id).update({ locked: newState });
-}
-
-// ---------------------- DELETE QR ----------------------
-function deleteQRCode(id) {
-  if (confirm("Delete this QR code?")) {
-    db.collection('qrcodes').doc(id).delete();
-  }
-}
-
-// ---------------------- DOWNLOAD QR ----------------------
-function downloadQRCode(id) {
-  const canvas = document.getElementById(`c-${id}`);
-  const link = document.createElement('a');
-  link.href = canvas.toDataURL('image/png');
-  link.download = 'qr-code.png';
-  link.click();
 }
 
 // ---------------------- LOAD QR CODES ----------------------
@@ -125,17 +104,18 @@ function loadQRCodesRealtime() {
       snapshot.forEach(doc => {
         const d = doc.data();
         const div = document.createElement('div');
-        div.className='qr-card';
+        div.className = 'qr-card' + (d.locked ? ' locked' : '');
         div.id = `qr-${doc.id}`;
         div.innerHTML = `
           <strong>${d.label || 'Untitled QR'}</strong><br>
+          Locked: <span id="locked-${doc.id}">${d.locked ? 'Yes' : 'No'}</span><br>
           Scans: <span id="scancount-${doc.id}">${d.scans || 0}</span><br>
           Last Scan: <span id="lastscan-${doc.id}">${d.lastScan ? d.lastScan.toDate().toLocaleString() : 'Never'}</span><br><br>
           <canvas id="c-${doc.id}"></canvas><br><br>
           <div class="qr-actions">
             <button onclick="downloadQRCode('${doc.id}')">Download</button>
             <button onclick="deleteQRCode('${doc.id}')">Delete</button>
-            <button onclick="toggleLock('${doc.id}', ${d.locked || false})">${d.locked ? 'Unlock' : 'Lock'}</button>
+            <button onclick="toggleLock('${doc.id}', ${d.locked})">${d.locked ? 'Unlock' : 'Lock'}</button>
           </div>
           <h4>Scan Log</h4>
           <table class="scan-table" id="table-${doc.id}">
@@ -170,6 +150,29 @@ function loadQRCodesRealtime() {
           });
       });
     });
+}
+
+// ---------------------- DOWNLOAD QR ----------------------
+function downloadQRCode(id) {
+  const canvas = document.getElementById(`c-${id}`);
+  const link = document.createElement('a');
+  link.href = canvas.toDataURL('image/png');
+  link.download = 'qr-code.png';
+  link.click();
+}
+
+// ---------------------- DELETE QR ----------------------
+function deleteQRCode(id) {
+  if (confirm("Delete this QR code?")) {
+    db.collection('qrcodes').doc(id).delete();
+  }
+}
+
+// ---------------------- LOCK / UNLOCK ----------------------
+function toggleLock(id, currentState) {
+  db.collection('qrcodes').doc(id).update({
+    locked: !currentState
+  });
 }
 </script>
 </body>
