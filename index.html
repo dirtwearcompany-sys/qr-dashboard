@@ -21,7 +21,6 @@ input, button { width:100%; padding:10px; margin:5px 0; }
 .qr-actions button { width:auto; margin-right:5px; }
 </style>
 </head>
-
 <body>
 <header>
   <h2>QR Dashboard</h2>
@@ -31,7 +30,6 @@ input, button { width:100%; padding:10px; margin:5px 0; }
 <main>
   <h3>Create QR Code</h3>
   <input id="qrLabel" placeholder="Label (optional)">
-  <input id="qrText" placeholder="Full URL (must start with https://)">
   <button onclick="createQRCode()">Create QR</button>
 
   <h3>Your QR Codes</h3>
@@ -39,6 +37,7 @@ input, button { width:100%; padding:10px; margin:5px 0; }
 </main>
 
 <script>
+// ---------------------- FIREBASE CONFIG ----------------------
 const firebaseConfig = {
   apiKey: "AIzaSyDPfjv3ZZ18ELPiC2Jc-z_yk86ejOvAad4",
   authDomain: "qr-tracker-4b53e.firebaseapp.com",
@@ -52,71 +51,68 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 let user;
 
-// ---------------- AUTH ----------------
+// ---------------------- CONFIG ----------------------
+// Your GitHub Pages URL
+const githubPagesUrl = "https://dirtwearcompany-sys.github.io/qr.dashboard";
+
+// ---------------------- AUTH CHECK ----------------------
 auth.onAuthStateChanged(u => {
   if (!u) location.href='login.html';
   user = u;
   loadQRCodesRealtime();
 });
 
-// ---------------- LOGOUT ----------------
-function logout() { 
-  auth.signOut().then(()=>location.href='login.html'); 
-}
+// ---------------------- LOGOUT ----------------------
+function logout() { auth.signOut().then(()=>location.href='login.html'); }
 
-// ---------------- CREATE QR ----------------
+// ---------------------- CREATE QR CODE ----------------------
 function createQRCode() {
-  const text = qrText.value.trim();
   const label = qrLabel.value.trim();
+  if (!label) return alert("Enter a label for the QR code.");
 
-  if (!/^https?:\/\//.test(text)) {
-    return alert("Enter a full URL starting with http:// or https://");
-  }
-
+  // First add to Firestore (empty text for now, will update)
   db.collection('qrcodes').add({
     uid: user.uid,
-    text,  // store full URL
+    text: '', // temporary placeholder
     label,
     scans: 0
-  })
-  .then(() => { qrText.value=''; qrLabel.value=''; })
-  .catch(err => alert(err.message));
+  }).then(docRef => {
+    // Full URL to scan.html with this doc ID
+    const fullUrl = `${githubPagesUrl}/scan.html?id=${docRef.id}`;
+
+    // Update Firestore document with full URL
+    return docRef.update({ text: fullUrl });
+  }).then(() => {
+    qrLabel.value = '';
+  }).catch(err => alert(err.message));
 }
 
-// ---------------- LOAD QR CODES ----------------
+// ---------------------- LOAD QR CODES ----------------------
 function loadQRCodesRealtime() {
-  db.collection('qrcodes')
-    .where('uid','==',user.uid)
-    .onSnapshot(snapshot => {
-      qrList.innerHTML='';
-      snapshot.forEach(doc => {
-        const d = doc.data();
-        const div = document.createElement('div');
-        div.className='qr-card';
-        div.innerHTML = `
-          <strong>${d.label || 'Untitled QR'}</strong><br>
-          Scans: ${d.scans}<br><br>
-          <canvas id="c-${doc.id}"></canvas><br><br>
-          <div class="qr-actions">
-            <button onclick="downloadQRCode('${doc.id}')">Download</button>
-            <button onclick="deleteQRCode('${doc.id}')">Delete</button>
-          </div>
-        `;
-        qrList.appendChild(div);
+  db.collection('qrcodes').where('uid','==',user.uid).onSnapshot(snapshot => {
+    qrList.innerHTML = '';
+    snapshot.forEach(doc => {
+      const d = doc.data();
+      const div = document.createElement('div');
+      div.className='qr-card';
+      div.innerHTML = `
+        <strong>${d.label || 'Untitled QR'}</strong><br>
+        Scans: ${d.scans}<br><br>
+        <canvas id="c-${doc.id}"></canvas><br><br>
+        <div class="qr-actions">
+          <button onclick="downloadQRCode('${doc.id}')">Download</button>
+          <button onclick="deleteQRCode('${doc.id}')">Delete</button>
+        </div>
+      `;
+      qrList.appendChild(div);
 
-        // ---------------- QR CODE GENERATION ----------------
-        const githubPagesBase = "https://dirtwearcompany-sys.github.io/qr.dashboard";
-        const fullScanUrl = githubPagesBase + '/scan.html?id=' + doc.id;
-
-        QRCode.toCanvas(
-          document.getElementById(`c-${doc.id}`),
-          fullScanUrl
-        );
-      });
+      // Generate QR code pointing to full URL
+      QRCode.toCanvas(document.getElementById(`c-${doc.id}`), d.text);
     });
+  });
 }
 
-// ---------------- DOWNLOAD QR ----------------
+// ---------------------- DOWNLOAD QR ----------------------
 function downloadQRCode(id) {
   const canvas = document.getElementById(`c-${id}`);
   const link = document.createElement('a');
@@ -125,7 +121,7 @@ function downloadQRCode(id) {
   link.click();
 }
 
-// ---------------- DELETE QR ----------------
+// ---------------------- DELETE QR ----------------------
 function deleteQRCode(id) {
   if (confirm("Delete this QR code?")) {
     db.collection('qrcodes').doc(id).delete();
