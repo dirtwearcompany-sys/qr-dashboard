@@ -21,6 +21,7 @@ a { color:#2196F3; font-weight:bold; text-decoration:none; }
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
 <script>
 // ---------------------- FIREBASE CONFIG ----------------------
 const firebaseConfig = {
@@ -47,32 +48,36 @@ if (!id) {
       document.getElementById('message').textContent = "QR Code not found.";
       return;
     }
+
     const data = doc.data();
 
+    // Check if QR is locked
     if(data.locked){
-      document.getElementById('message').textContent = "This QR code is locked.";
+      document.getElementById('message').textContent = "This QR code is locked and cannot be scanned.";
       return;
     }
 
     const now = firebase.firestore.Timestamp.now();
 
-    // ---------------------- ADD SCAN ----------------------
-    const batch = db.batch();
-    // increment total scans
-    batch.update(docRef, { scans: firebase.firestore.FieldValue.increment(1), lastScan: now });
-    // add timestamp to subcollection
-    const scanRef = docRef.collection('scans').doc();
-    batch.set(scanRef, { timestamp: now });
-    batch.commit().catch(console.error);
+    // ---------------------- INCREMENT SCANS ----------------------
+    docRef.update({
+      scans: firebase.firestore.FieldValue.increment(1),
+      lastScan: now
+    }).catch(console.error);
+
+    // ---------------------- ADD SCAN LOG ----------------------
+    docRef.collection('scans').add({
+      timestamp: now
+    }).catch(console.error);
 
     // ---------------------- REDIRECT ----------------------
     const redirectUrl = data.text;
-    let countdown = 3;
     const countdownElem = document.getElementById('countdown');
+    let countdown = 3;
     const interval = setInterval(() => {
       countdownElem.textContent = `Redirecting in ${countdown}...`;
       countdown--;
-      if(countdown<0){
+      if (countdown < 0) {
         clearInterval(interval);
         window.location.href = redirectUrl;
       }
@@ -82,7 +87,7 @@ if (!id) {
     fallbackLink.href = redirectUrl;
     document.getElementById('fallback').style.display = 'block';
 
-  }).catch(err=>{
+  }).catch(err => {
     document.getElementById('message').textContent = "An error occurred.";
     console.error(err);
   });
