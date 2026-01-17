@@ -30,6 +30,7 @@ input, button { width:100%; padding:10px; margin:5px 0; }
 <main>
   <h3>Create QR Code</h3>
   <input id="qrLabel" placeholder="Label (optional)">
+  <input id="qrText" placeholder="Full URL (optional, leave blank to generate scan.html)">
   <button onclick="createQRCode()">Create QR</button>
 
   <h3>Your QR Codes</h3>
@@ -52,7 +53,6 @@ const db = firebase.firestore();
 let user;
 
 // ---------------------- CONFIG ----------------------
-// Your GitHub Pages URL
 const githubPagesUrl = "https://dirtwearcompany-sys.github.io/qr.dashboard";
 
 // ---------------------- AUTH CHECK ----------------------
@@ -68,22 +68,33 @@ function logout() { auth.signOut().then(()=>location.href='login.html'); }
 // ---------------------- CREATE QR CODE ----------------------
 function createQRCode() {
   const label = qrLabel.value.trim();
+  let text = qrText.value.trim();
+
   if (!label) return alert("Enter a label for the QR code.");
 
-  // First add to Firestore (empty text for now, will update)
+  // First create Firestore doc
   db.collection('qrcodes').add({
     uid: user.uid,
-    text: '', // temporary placeholder
+    text: '', // placeholder
     label,
     scans: 0
   }).then(docRef => {
-    // Full URL to scan.html with this doc ID
-    const fullUrl = `${githubPagesUrl}/scan.html?id=${docRef.id}`;
 
-    // Update Firestore document with full URL
-    return docRef.update({ text: fullUrl });
+    // If user entered a full URL, use it; otherwise, generate scan.html link
+    if (text && /^https?:\/\//.test(text)) {
+      // External URL
+      text = text;
+    } else {
+      // GitHub Pages scan.html link
+      text = `${githubPagesUrl}/scan.html?id=${docRef.id}`;
+    }
+
+    // Update Firestore doc with final URL
+    return docRef.update({ text });
+
   }).then(() => {
     qrLabel.value = '';
+    qrText.value = '';
   }).catch(err => alert(err.message));
 }
 
@@ -106,7 +117,7 @@ function loadQRCodesRealtime() {
       `;
       qrList.appendChild(div);
 
-      // Generate QR code pointing to full URL
+      // Generate QR code pointing to final URL
       QRCode.toCanvas(document.getElementById(`c-${doc.id}`), d.text);
     });
   });
