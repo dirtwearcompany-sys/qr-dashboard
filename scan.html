@@ -1,18 +1,22 @@
+
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Redirecting...</title>
+  <title>QR Scan</title>
+  <style>
+    body { font-family: Arial; text-align: center; margin-top: 100px; }
+    h2 { color: #333; }
+  </style>
 </head>
 <body>
-<p>Redirecting…</p>
+<h2 id="message">Processing your scan...</h2>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, doc, getDoc, updateDoc, increment }
-from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, doc, setDoc, updateDoc, increment, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// 🔥 SAME CONFIG AS index.html
+// 🔥 Replace with your Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyDPfjv3ZZ18ELPiC2Jc-z_yk86ejOvAad4",
   authDomain: "qr-tracker-4b53e.firebaseapp.com",
@@ -22,34 +26,45 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// GET QR ID
+// Get QR code ID from URL: scan.html?id=qr123
 const params = new URLSearchParams(window.location.search);
-const id = params.get("id");
+const codeId = params.get("id");
 
-if (!id) {
-  document.body.innerHTML = "Invalid QR code";
-  throw new Error("Missing QR ID");
+// Mapping of QR code IDs to actual destination URLs (hidden from user)
+const destinations = {
+  "promo1": "https://example.com/promo1",
+  "promo2": "https://example.com/promo2",
+  "promo3": "https://example.com/promo3"
+};
+
+const messageEl = document.getElementById("message");
+
+if(codeId && destinations[codeId]){
+  const docRef = doc(db, "qr_codes", codeId);
+
+  // Increment scan count & log timestamp
+  updateDoc(docRef, { 
+    count: increment(1), 
+    lastScanned: serverTimestamp()
+  })
+  .catch(async (err) => {
+    // If doc doesn't exist, create it
+    await setDoc(docRef, { count: 1, lastScanned: serverTimestamp() });
+  });
+
+  // Show thank you message
+  messageEl.textContent = "Thank you for scanning! Redirecting...";
+
+  // Redirect to hidden URL after 2 seconds
+  setTimeout(() => {
+    window.location.href = destinations[codeId];
+  }, 2000);
+
+} else {
+  // Invalid QR code
+  messageEl.textContent = "Invalid QR code.";
 }
-
-const ref = doc(db, "qrcodes", id);
-const snap = await getDoc(ref);
-
-if (!snap.exists()) {
-  document.body.innerHTML = "QR code not found";
-  throw new Error("QR not found");
-}
-
-// INCREMENT COUNTERS
-const today = new Date().toISOString().slice(0,10);
-
-await updateDoc(ref, {
-  scans: increment(1),
-  [`daily.${today}`]: increment(1)
-});
-
-// REDIRECT
-window.location.href = snap.data().url;
 </script>
-
 </body>
 </html>
+
