@@ -14,7 +14,6 @@ header h1 { margin:0; font-size:24px; }
 header button { background: #fff; color:#4CAF50; border:none; padding:8px 12px; cursor:pointer; border-radius:4px; font-weight:bold; }
 main { padding:20px; max-width:800px; margin:auto; }
 input, button { padding:10px; margin:5px 0; width:100%; box-sizing:border-box; }
-.qr-preview { margin:10px 0; text-align:center; }
 .qr-card { background:white; padding:15px; margin:15px 0; border-radius:8px; box-shadow:0 2px 5px rgba(0,0,0,0.1); display:flex; align-items:center; gap:20px; flex-wrap:wrap;}
 .qr-info { flex:1; min-width:150px; }
 .qr-actions button { margin-right:5px; padding:5px 10px; border-radius:4px; border:none; cursor:pointer; }
@@ -31,10 +30,7 @@ input, button { padding:10px; margin:5px 0; width:100%; box-sizing:border-box; }
 <main>
 <h3>Create a new QR code</h3>
 <input type="text" id="qrLabel" placeholder="Label (optional)">
-<input type="text" id="qrText" placeholder="Enter URL or text" oninput="updatePreview()">
-<div class="qr-preview">
-  <canvas id="previewCanvas"></canvas>
-</div>
+<input type="text" id="qrText" placeholder="Enter URL or text">
 <button onclick="createQRCode()">Create QR Code</button>
 
 <h3>Your QR Codes</h3>
@@ -73,16 +69,10 @@ function createQRCode() {
   if(!text) return alert("Enter a URL or text");
   if(!user) return alert("User not logged in");
 
-  // Step 1: Generate Firestore doc first to get real ID
   const docRef = db.collection('qrcodes').doc();
   const qrId = docRef.id;
 
-  // Step 2: Draw the QR code immediately on the preview canvas with real ID
-  QRCode.toCanvas(document.getElementById('previewCanvas'), window.location.origin + '/scan.html?id=' + qrId, err => {
-    if(err) console.error(err);
-  });
-
-  // Step 3: Write to Firestore
+  // Write to Firestore
   docRef.set({
     uid: user.uid,
     text: text,
@@ -91,22 +81,11 @@ function createQRCode() {
     scans: 0
   })
   .then(()=>{
-    // ✅ Keep preview visible, clear only input fields
+    // Clear inputs
     document.getElementById('qrText').value='';
     document.getElementById('qrLabel').value='';
   })
   .catch(err => alert("Error creating QR: " + err.message));
-}
-
-// Live QR preview (before creating)
-function updatePreview() {
-  const text = document.getElementById('qrText').value.trim();
-  const canvas = document.getElementById('previewCanvas');
-  if(!text) return canvas.getContext('2d').clearRect(0,0,200,200);
-  // Use a temporary preview ID (won't affect real creation)
-  QRCode.toCanvas(canvas, window.location.origin+'/scan.html?id=preview-'+encodeURIComponent(text), err=>{
-    if(err) console.error(err);
-  });
 }
 
 // Real-time dashboard
