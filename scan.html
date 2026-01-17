@@ -50,23 +50,22 @@ if (!id) {
     }
     const data = doc.data();
 
-    // ---------------------- INCREMENT SCANS AND ADD TIMESTAMP ----------------------
+    // ---------------------- INCREMENT SCANS ----------------------
     const now = firebase.firestore.FieldValue.serverTimestamp();
-
-    // Increment scan counter and set lastScan
+    
+    // Increment scans and update lastScan safely
     docRef.update({
       scans: firebase.firestore.FieldValue.increment(1),
       lastScan: now
-    }).catch(console.error);
+    }).catch(err => console.error("Failed to update scans:", err));
 
-    // Add a scan log
+    // Add a scan log in subcollection
     docRef.collection('scans').add({
       timestamp: now
-    }).catch(console.error);
+    }).catch(err => console.error("Failed to log scan:", err));
 
     // ---------------------- REDIRECT ----------------------
     const redirectUrl = data.text;
-
     let countdown = 3;
     const countdownElem = document.getElementById('countdown');
     const interval = setInterval(() => {
@@ -78,7 +77,6 @@ if (!id) {
       }
     }, 1000);
 
-    // Fallback link
     const fallbackLink = document.getElementById('redirectLink');
     fallbackLink.href = redirectUrl;
     document.getElementById('fallback').style.display = 'block';
