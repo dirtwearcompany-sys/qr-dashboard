@@ -4,12 +4,9 @@
 <meta charset="UTF-8">
 <title>QR Dashboard</title>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
-<!-- QR Code -->
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
 <style>
@@ -19,9 +16,6 @@ main { max-width:900px; margin:auto; padding:20px; }
 input, button { width:100%; padding:10px; margin:5px 0; }
 .qr-card { background:white; padding:15px; margin:10px 0; border-radius:6px; }
 .qr-actions button { width:auto; margin-right:5px; }
-.scan-table { width:100%; border-collapse:collapse; margin-top:10px; }
-.scan-table th, .scan-table td { border:1px solid #ccc; padding:5px; text-align:left; }
-.scan-table th { background:#f0f0f0; }
 .locked { opacity:0.6; }
 </style>
 </head>
@@ -69,7 +63,7 @@ auth.onAuthStateChanged(u => {
 // ---------------------- LOGOUT ----------------------
 function logout() { auth.signOut().then(()=>location.href='login.html'); }
 
-// ---------------------- CREATE QR CODE ----------------------
+// ---------------------- CREATE QR ----------------------
 function createQRCode() {
   const label = qrLabel.value.trim();
   let text = qrText.value.trim();
@@ -101,31 +95,26 @@ function loadQRCodesRealtime() {
       snapshot.forEach(doc => {
         const d = doc.data();
         const div = document.createElement('div');
-        div.className = `qr-card${d.locked ? ' locked' : ''}`;
+        div.className = 'qr-card';
         div.id = `qr-${doc.id}`;
         div.innerHTML = `
           <strong>${d.label || 'Untitled QR'}</strong><br>
-          Status: <span id="status-${doc.id}">${d.locked ? 'Locked' : 'Unlocked'}</span><br>
-          Scans: <span id="scancount-${doc.id}">${d.scans || 0}</span><br><br>
-          <canvas id="c-${doc.id}"></canvas><br><br>
+          Scans: <span id="scancount-${doc.id}">${d.scans || 0}</span><br>
+          <canvas id="c-${doc.id}"></canvas><br>
           <div class="qr-actions">
             <button onclick="downloadQRCode('${doc.id}')">Download</button>
             <button onclick="deleteQRCode('${doc.id}')">Delete</button>
-            <button onclick="toggleLock('${doc.id}')">${d.locked ? 'Unlock' : 'Lock'}</button>
           </div>
         `;
         qrList.appendChild(div);
 
-        // Generate QR
         QRCode.toCanvas(document.getElementById(`c-${doc.id}`), d.text);
 
         // ---------------------- LIVE SCAN COUNT ----------------------
-        // We use the public 'scans' field only, per your rules
         db.collection('qrcodes').doc(doc.id)
           .onSnapshot(docSnap => {
-            const data = docSnap.data();
-            if (!data) return;
-            document.getElementById(`scancount-${doc.id}`).textContent = data.scans || 0;
+            if (!docSnap.exists) return;
+            document.getElementById(`scancount-${doc.id}`).textContent = docSnap.data().scans || 0;
           });
       });
     });
@@ -145,16 +134,6 @@ function deleteQRCode(id) {
   if (confirm("Delete this QR code?")) {
     db.collection('qrcodes').doc(id).delete();
   }
-}
-
-// ---------------------- LOCK/UNLOCK ----------------------
-function toggleLock(id) {
-  const docRef = db.collection('qrcodes').doc(id);
-  docRef.get().then(doc => {
-    if (!doc.exists) return;
-    const current = doc.data().locked || false;
-    docRef.update({ locked: !current });
-  });
 }
 </script>
 </body>
