@@ -29,6 +29,7 @@ input, button { width:100%; padding:10px; margin:5px 0; }
 <main>
   <h3>Create QR Code</h3>
   <input id="qrLabel" placeholder="Label (required)">
+  <input id="qrText" placeholder="Full URL (optional, leave blank to generate scan.html)">
   <button onclick="createQRCode()">Create QR</button>
 
   <h3>Your QR Codes</h3>
@@ -64,11 +65,18 @@ function logout() { auth.signOut().then(()=>location.href='login.html'); }
 function createQRCode() {
   if (!user) return alert("You must be logged in!");
   const label = qrLabel.value.trim();
+  let text = qrText.value.trim();
+
   if (!label) return alert("Enter a label for the QR code.");
 
   const docRef = db.collection('qrcodes').doc();
-  const text = `${githubPagesUrl}/scan.html?id=${docRef.id}`;
 
+  // If user didn't enter a URL, generate scan.html link
+  if (!text || !/^https?:\/\//.test(text)) {
+    text = `${githubPagesUrl}/scan.html?id=${docRef.id}`;
+  }
+
+  // Add the document in one step
   docRef.set({
     uid: user.uid,
     label,
@@ -77,6 +85,7 @@ function createQRCode() {
     lastScan: null
   }).then(() => {
     qrLabel.value = '';
+    qrText.value = '';
   }).catch(err => alert(err.message));
 }
 
