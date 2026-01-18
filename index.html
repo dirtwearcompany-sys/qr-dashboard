@@ -57,7 +57,6 @@ const db = firebase.firestore();
 let user;
 
 // ---------------------- CONFIG ----------------------
-// Make sure scan.html is in the same folder as index.html
 const githubPagesUrl = "https://dirtwearcompany-sys.github.io/qr.dashboard";
 
 // ---------------------- AUTH CHECK ----------------------
@@ -81,7 +80,6 @@ function createQRCode() {
     text: '', // placeholder
     label,
     scans: 0,
-    lastScan: null,
     locked: false
   }).then(docRef => {
     if (!text || !/^https?:\/\//.test(text)) {
@@ -108,42 +106,26 @@ function loadQRCodesRealtime() {
         div.innerHTML = `
           <strong>${d.label || 'Untitled QR'}</strong><br>
           Status: <span id="status-${doc.id}">${d.locked ? 'Locked' : 'Unlocked'}</span><br>
-          Scans: <span id="scancount-${doc.id}">${d.scans || 0}</span><br>
-          Last Scan: <span id="lastscan-${doc.id}">${d.lastScan ? d.lastScan.toDate().toLocaleString() : 'Never'}</span><br><br>
+          Scans: <span id="scancount-${doc.id}">${d.scans || 0}</span><br><br>
           <canvas id="c-${doc.id}"></canvas><br><br>
           <div class="qr-actions">
             <button onclick="downloadQRCode('${doc.id}')">Download</button>
             <button onclick="deleteQRCode('${doc.id}')">Delete</button>
             <button onclick="toggleLock('${doc.id}')">${d.locked ? 'Unlock' : 'Lock'}</button>
           </div>
-          <h4>Scan Log</h4>
-          <table class="scan-table" id="table-${doc.id}">
-            <thead><tr><th>#</th><th>Date & Time</th></tr></thead>
-            <tbody></tbody>
-          </table>
         `;
         qrList.appendChild(div);
 
+        // Generate QR
         QRCode.toCanvas(document.getElementById(`c-${doc.id}`), d.text);
 
-        // ---------------------- LIVE SCAN COUNT & LOG ----------------------
+        // ---------------------- LIVE SCAN COUNT ----------------------
+        // We use the public 'scans' field only, per your rules
         db.collection('qrcodes').doc(doc.id)
-          .collection('scans').orderBy('timestamp','desc')
-          .onSnapshot(scanSnapshot => {
-            const tbody = document.querySelector(`#table-${doc.id} tbody`);
-            tbody.innerHTML = '';
-            let count = 0;
-            scanSnapshot.forEach(snap => {
-              count++;
-              const tr = document.createElement('tr');
-              tr.innerHTML = `<td>${count}</td><td>${snap.data().timestamp.toDate().toLocaleString()}</td>`;
-              tbody.appendChild(tr);
-            });
-
-            // Update scan count and last scan
-            document.getElementById(`scancount-${doc.id}`).textContent = count;
-            document.getElementById(`lastscan-${doc.id}`).textContent =
-              scanSnapshot.docs[0] ? scanSnapshot.docs[0].data().timestamp.toDate().toLocaleString() : 'Never';
+          .onSnapshot(docSnap => {
+            const data = docSnap.data();
+            if (!data) return;
+            document.getElementById(`scancount-${doc.id}`).textContent = data.scans || 0;
           });
       });
     });
