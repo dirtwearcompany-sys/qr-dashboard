@@ -138,7 +138,7 @@ function loadQRCodesRealtime() {
               tr.innerHTML = `<td>${count}</td><td>${snap.data().timestamp.toDate().toLocaleString()}</td>`;
               tbody.appendChild(tr);
             });
-            document.getElementById(`scancount-${doc.id}`).textContent = count;
+            Scans: <span id="scancount-${doc.id}">${d.scans || 0}</span>
             document.getElementById(`lastscan-${doc.id}`).textContent =
               scanSnapshot.docs[0] ? scanSnapshot.docs[0].data().timestamp.toDate().toLocaleString() : 'Never';
           });
