@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>QR Scan</title>
+<title>QR Redirect</title>
 <style>
 body { font-family: Arial,sans-serif; background:#f4f4f4; display:flex; justify-content:center; align-items:center; height:100vh; text-align:center; }
 .container { background:white; padding:30px; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.1); max-width:400px; }
@@ -13,16 +13,16 @@ a { color:#2196F3; font-weight:bold; text-decoration:none; }
 </head>
 <body>
 <div class="container">
-  <h1>QR Scan</h1>
-  <p id="message">Processing scan...</p>
-  <p id="countdown"></p>
-  <p id="fallback" style="display:none;">If not redirected, <a id="redirectLink" href="#">click here</a>.</p>
+<h1>Redirecting...</h1>
+<p id="message">Please wait while we redirect you.</p>
+<p id="countdown"></p>
+<p id="fallback" style="display:none;">If not redirected, <a id="redirectLink" href="#">click here</a>.</p>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script>
-// ---------------------- FIREBASE CONFIG ----------------------
+// FIREBASE CONFIG
 const firebaseConfig = {
   apiKey: "AIzaSyDPfjv3ZZ18ELPiC2Jc-z_yk86ejOvAad4",
   authDomain: "qr-tracker-4b53e.firebaseapp.com",
@@ -34,7 +34,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-// ---------------------- GET QR ID ----------------------
+// GET QR ID FROM URL
 const params = new URLSearchParams(window.location.search);
 const id = params.get('id');
 
@@ -43,26 +43,21 @@ if (!id) {
 } else {
   const docRef = db.collection('qrcodes').doc(id);
 
-  // ---------------------- GET DOC & UPDATE SCANS ----------------------
+  // GET DOCUMENT AND INCREMENT SCANS
   docRef.get().then(doc => {
     if (!doc.exists) {
       document.getElementById('message').textContent = "QR Code not found.";
       return;
     }
 
-    const redirectUrl = doc.data().text;
-
-    // Increment scans + update lastScan atomically
+    const redirectUrl = doc.data().text || '/';
     const now = firebase.firestore.Timestamp.now();
-    docRef.update({
-      scans: doc.data().scans + 1,
-      lastScan: now
-    }).catch(console.error);
 
-    // Add scan log entry
-    docRef.collection('scans').add({
-      timestamp: now
-    }).catch(console.error);
+    // Increment scans and set lastScan in one atomic update
+    docRef.update({
+      scans: firebase.firestore.FieldValue.increment(1),
+      lastScan: now
+    }).catch(err => console.error("Failed to increment scans:", err));
 
     // Countdown redirect
     let countdown = 3;
