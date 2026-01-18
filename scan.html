@@ -4,25 +4,25 @@
 <meta charset="UTF-8">
 <title>QR Redirect</title>
 <style>
-body { font-family: Arial, sans-serif; background: #f4f4f4; display: flex; justify-content: center; align-items: center; height: 100vh; text-align: center; }
-.container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 400px; }
-h1 { color: #4CAF50; }
-p { font-size: 18px; }
-a { color: #2196F3; font-weight: bold; text-decoration: none; }
-#scanCount { margin-top: 15px; font-weight: bold; }
+body { font-family: Arial,sans-serif; background:#f4f4f4; display:flex; justify-content:center; align-items:center; height:100vh; text-align:center; }
+.container { background:white; padding:30px; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.1); max-width:400px; }
+h1 { color:#4CAF50; }
+p { font-size:18px; }
+a { color:#2196F3; font-weight:bold; text-decoration:none; }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>Redirecting...</h1>
-  <p id="message">Please wait while we redirect you.</p>
-  <p id="countdown"></p>
-  <p id="scanCount"></p>
-  <p id="fallback" style="display:none;">If not redirected, <a id="redirectLink" href="#">click here</a>.</p>
+<h1>Redirecting...</h1>
+<p id="message">Please wait while we redirect you.</p>
+<p id="countdown"></p>
+<p id="fallback" style="display:none;">If not redirected, <a id="redirectLink" href="#">click here</a>.</p>
 </div>
 
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
 <script>
 // ---------------------- FIREBASE CONFIG ----------------------
 const firebaseConfig = {
@@ -45,25 +45,12 @@ if (!id) {
 } else {
   const docRef = db.collection('qrcodes').doc(id);
 
-  // ---------------------- ADD SCAN ----------------------
-  const now = firebase.firestore.Timestamp.now();
+  // ---------------------- INCREMENT SCANS ----------------------
   docRef.update({
-    scans: firebase.firestore.FieldValue.increment(1),
-    lastScan: now
-  }).catch(console.error);
+    scans: firebase.firestore.FieldValue.increment(1)
+  }).catch(err => console.error("Scan increment failed:", err));
 
-  docRef.collection('scans').add({ timestamp: now }).catch(console.error);
-
-  // ---------------------- LIVE UPDATE SCAN COUNT ----------------------
-  const scanCountElem = document.getElementById('scanCount');
-  docRef.onSnapshot(doc => {
-    if (doc.exists) {
-      const data = doc.data();
-      scanCountElem.textContent = `Total Scans: ${data.scans || 0}`;
-    }
-  });
-
-  // ---------------------- REDIRECT ----------------------
+  // ---------------------- GET REDIRECT URL ----------------------
   docRef.get().then(doc => {
     if (!doc.exists) {
       document.getElementById('message').textContent = "QR Code not found.";
@@ -88,6 +75,7 @@ if (!id) {
     const fallbackLink = document.getElementById('redirectLink');
     fallbackLink.href = redirectUrl;
     document.getElementById('fallback').style.display = 'block';
+
   }).catch(err => {
     document.getElementById('message').textContent = "An error occurred.";
     console.error(err);
