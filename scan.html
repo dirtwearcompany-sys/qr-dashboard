@@ -2,27 +2,41 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>QR Redirect</title>
+<title>QR Dashboard</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 <style>
-body { font-family: Arial,sans-serif; background:#f4f4f4; display:flex; justify-content:center; align-items:center; height:100vh; text-align:center; }
-.container { background:white; padding:30px; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.1); max-width:400px; }
-h1 { color:#4CAF50; }
-p { font-size:18px; }
-a { color:#2196F3; font-weight:bold; text-decoration:none; }
+body { font-family: Arial,sans-serif; background:#f9f9f9; margin:0; }
+header { background:#4CAF50; color:white; padding:15px; display:flex; justify-content:space-between; }
+main { max-width:900px; margin:auto; padding:20px; }
+input, button { width:100%; padding:10px; margin:5px 0; }
+.qr-card { background:white; padding:15px; margin:10px 0; border-radius:6px; }
+.qr-actions button { width:auto; margin-right:5px; }
+.scan-table { width:100%; border-collapse:collapse; margin-top:10px; }
+.scan-table th, .scan-table td { border:1px solid #ccc; padding:5px; text-align:left; }
+.scan-table th { background:#f0f0f0; }
+.locked { opacity:0.6; }
 </style>
 </head>
 <body>
-<div class="container">
-<h1>Redirecting...</h1>
-<p id="message">Please wait while we redirect you.</p>
-<p id="countdown"></p>
-<p id="fallback" style="display:none;">If not redirected, <a id="redirectLink" href="#">click here</a>.</p>
-</div>
+<header>
+  <h2>QR Dashboard</h2>
+  <button onclick="logout()">Logout</button>
+</header>
 
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<main>
+<h3>Create QR Code</h3>
+<input id="qrLabel" placeholder="Label (optional)">
+<input id="qrText" placeholder="Full URL (optional, leave blank to generate scan.html)">
+<button onclick="createQRCode()">Create QR</button>
+
+<h3>Your QR Codes</h3>
+<div id="qrList"></div>
+</main>
+
 <script>
-// FIREBASE CONFIG
 const firebaseConfig = {
   apiKey: "AIzaSyDPfjv3ZZ18ELPiC2Jc-z_yk86ejOvAad4",
   authDomain: "qr-tracker-4b53e.firebaseapp.com",
@@ -32,53 +46,92 @@ const firebaseConfig = {
   appId: "1:329754045002:web:922633ad6ada8018a1d4b3"
 };
 firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
 const db = firebase.firestore();
+let user;
+const githubPagesUrl = "https://dirtwearcompany-sys.github.io/qr.dashboard";
 
-// GET QR ID FROM URL
-const params = new URLSearchParams(window.location.search);
-const id = params.get('id');
+// AUTH CHECK
+auth.onAuthStateChanged(u => {
+  if (!u) location.href='login.html';
+  user = u;
+  loadQRCodesRealtime();
+});
 
-if (!id) {
-  document.getElementById('message').textContent = "Invalid QR Code";
-} else {
-  const docRef = db.collection('qrcodes').doc(id);
+function logout() { auth.signOut().then(()=>location.href='login.html'); }
 
-  // GET DOCUMENT AND INCREMENT SCANS
-  docRef.get().then(doc => {
-    if (!doc.exists) {
-      document.getElementById('message').textContent = "QR Code not found.";
-      return;
-    }
+// CREATE QR CODE
+function createQRCode() {
+  if (!user) return alert("Not logged in");
 
-    const redirectUrl = doc.data().text || '/';
-    const now = firebase.firestore.Timestamp.now();
+  const label = qrLabel.value.trim();
+  let text = qrText.value.trim();
 
-    // Increment scans and set lastScan in one atomic update
-    docRef.update({
-      scans: firebase.firestore.FieldValue.increment(1),
-      lastScan: now
-    }).catch(err => console.error("Failed to increment scans:", err));
+  if (!label) return alert("Enter a label");
 
-    // Countdown redirect
-    let countdown = 3;
-    const countdownElem = document.getElementById('countdown');
-    const interval = setInterval(() => {
-      countdownElem.textContent = `Redirecting in ${countdown}...`;
-      countdown--;
-      if (countdown < 0) {
-        clearInterval(interval);
-        window.location.href = redirectUrl;
-      }
-    }, 1000);
+  const docRef = db.collection('qrcodes').doc();
+  if (!text || !/^https?:\/\//.test(text)) {
+    text = `${githubPagesUrl}/scan.html?id=${docRef.id}`;
+  }
 
-    // Fallback link
-    const fallbackLink = document.getElementById('redirectLink');
-    fallbackLink.href = redirectUrl;
-    document.getElementById('fallback').style.display = 'block';
-  }).catch(err => {
-    document.getElementById('message').textContent = "An error occurred.";
-    console.error(err);
-  });
+  docRef.set({
+    uid: user.uid,
+    label,
+    text,
+    scans: 0,
+    lastScan: null
+  }).then(() => {
+    qrLabel.value = '';
+    qrText.value = '';
+  }).catch(err => alert(err.message));
+}
+
+// LOAD QRCODES & LISTEN FOR LIVE SCANS
+function loadQRCodesRealtime() {
+  db.collection('qrcodes').where('uid','==',user.uid)
+    .onSnapshot(snapshot => {
+      qrList.innerHTML = '';
+      snapshot.forEach(doc => {
+        const d = doc.data();
+        const div = document.createElement('div');
+        div.className = `qr-card`;
+        div.id = `qr-${doc.id}`;
+        div.innerHTML = `
+          <strong>${d.label || 'Untitled QR'}</strong><br>
+          Scans: <span id="scancount-${doc.id}">${d.scans}</span><br>
+          Last Scan: <span id="lastscan-${doc.id}">${d.lastScan ? d.lastScan.toDate().toLocaleString() : 'Never'}</span><br><br>
+          <canvas id="c-${doc.id}"></canvas><br><br>
+          <div class="qr-actions">
+            <button onclick="downloadQRCode('${doc.id}')">Download</button>
+            <button onclick="deleteQRCode('${doc.id}')">Delete</button>
+          </div>
+        `;
+        qrList.appendChild(div);
+        QRCode.toCanvas(document.getElementById(`c-${doc.id}`), d.text);
+
+        // Listen to live scans
+        db.collection('qrcodes').doc(doc.id)
+          .onSnapshot(snap => {
+            const data = snap.data();
+            document.getElementById(`scancount-${doc.id}`).textContent = data.scans;
+            document.getElementById(`lastscan-${doc.id}`).textContent = data.lastScan ? data.lastScan.toDate().toLocaleString() : 'Never';
+          });
+      });
+    });
+}
+
+function downloadQRCode(id) {
+  const canvas = document.getElementById(`c-${id}`);
+  const link = document.createElement('a');
+  link.href = canvas.toDataURL('image/png');
+  link.download = 'qr-code.png';
+  link.click();
+}
+
+function deleteQRCode(id) {
+  if (confirm("Delete this QR code?")) {
+    db.collection('qrcodes').doc(id).delete();
+  }
 }
 </script>
 </body>
