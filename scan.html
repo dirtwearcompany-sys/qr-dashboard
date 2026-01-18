@@ -1,12 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
 <meta charset="UTF-8">
 <title>QR Redirect</title>
 <style>
 body { font-family:Arial,sans-serif; background:#f4f4f4; display:flex; justify-content:center; align-items:center; height:100vh; text-align:center; }
-body { font-family: Arial,sans-serif; background:#f4f4f4; display:flex; justify-content:center; align-items:center; height:100vh; text-align:center; }
 .container { background:white; padding:30px; border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,0.1); max-width:400px; }
 h1 { color:#4CAF50; }
 p { font-size:18px; }
-@@ -13,15 +13,17 @@
+a { color:#2196F3; font-weight:bold; text-decoration:none; }
+</style>
 </head>
 <body>
 <div class="container">
@@ -14,62 +17,49 @@ p { font-size:18px; }
 <p id="message">Please wait while we redirect you.</p>
 <p id="countdown"></p>
 <p id="fallback" style="display:none;">If not redirected, <a id="redirectLink" href="#">click here</a>.</p>
-  <h1>Redirecting...</h1>
-  <p id="message">Please wait while we redirect you.</p>
-  <p id="countdown"></p>
-  <p id="fallback" style="display:none;">If not redirected, <a id="redirectLink" href="#">click here</a>.</p>
 </div>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script>
 // ---------------------- FIREBASE CONFIG ----------------------
 const firebaseConfig = {
-apiKey: "AIzaSyDPfjv3ZZ18ELPiC2Jc-z_yk86ejOvAad4",
-authDomain: "qr-tracker-4b53e.firebaseapp.com",
-@@ -33,50 +35,50 @@ <h1>Redirecting...</h1>
+  apiKey: "AIzaSyDPfjv3ZZ18ELPiC2Jc-z_yk86ejOvAad4",
+  authDomain: "qr-tracker-4b53e.firebaseapp.com",
+  projectId: "qr-tracker-4b53e",
+  storageBucket: "qr-tracker-4b53e.appspot.com",
+  messagingSenderId: "329754045002",
+  appId: "1:329754045002:web:922633ad6ada8018a1d4b3"
+};
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-// Get QR ID from URL
 // ---------------------- GET QR ID ----------------------
 const params = new URLSearchParams(window.location.search);
 const id = params.get('id');
 
 if (!id) {
-document.getElementById('message').textContent = "Invalid QR Code";
+  document.getElementById('message').textContent = "Invalid QR Code";
 } else {
-  db.collection('qrcodes').doc(id).get()
-    .then(doc => {
-      if (!doc.exists) {
-        document.getElementById('message').textContent = "QR Code not found.";
-        return;
-      }
-      const data = doc.data();
   const docRef = db.collection('qrcodes').doc(id);
-  
+
+  // ---------------------- TRANSACTION: increment scans + update lastScan ----------------------
+  const now = firebase.firestore.Timestamp.now();
+  docRef.update({
+    scans: firebase.firestore.FieldValue.increment(1),
+    lastScan: now
+  }).catch(console.error);
+
+  // ---------------------- REDIRECT ----------------------
   docRef.get().then(doc => {
     if (!doc.exists) {
       document.getElementById('message').textContent = "QR Code not found.";
       return;
     }
 
-    const data = doc.data();
+    const redirectUrl = doc.data().text;
 
-      // Increment scans
-      db.collection('qrcodes').doc(id).update({
-        scans: firebase.firestore.FieldValue.increment(1)
-      }).catch(console.error);
-    // ---------------------- INCREMENT SCANS ----------------------
-    docRef.update({ scans: firebase.firestore.FieldValue.increment(1) }).catch(console.error);
-
-      // Must be full URL
-      const redirectUrl = data.text;
-    // ---------------------- REDIRECT URL ----------------------
-    const redirectUrl = data.text; // Must be full URL (http:// or https://)
-
-    // ---------------------- COUNTDOWN REDIRECT ----------------------
+    // Countdown redirect
     let countdown = 3;
     const countdownElem = document.getElementById('countdown');
     const interval = setInterval(() => {
@@ -81,31 +71,10 @@ document.getElementById('message').textContent = "Invalid QR Code";
       }
     }, 1000);
 
-      // Countdown redirect
-      let countdown = 3;
-      const countdownElem = document.getElementById('countdown');
-      const interval = setInterval(() => {
-        countdownElem.textContent = `Redirecting in ${countdown}...`;
-        countdown--;
-        if (countdown < 0) {
-          clearInterval(interval);
-          window.location.href = redirectUrl;
-        }
-      }, 1000);
-    // ---------------------- FALLBACK LINK ----------------------
+    // Fallback link
     const fallbackLink = document.getElementById('redirectLink');
     fallbackLink.href = redirectUrl;
     document.getElementById('fallback').style.display = 'block';
-
-      // Fallback link
-      const fallbackLink = document.getElementById('redirectLink');
-      fallbackLink.href = redirectUrl;
-      document.getElementById('fallback').style.display = 'block';
-    })
-    .catch(err => {
-      document.getElementById('message').textContent = "An error occurred.";
-      console.error(err);
-    });
   }).catch(err => {
     document.getElementById('message').textContent = "An error occurred.";
     console.error(err);
@@ -113,3 +82,4 @@ document.getElementById('message').textContent = "Invalid QR Code";
 }
 </script>
 </body>
+</html>
