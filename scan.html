@@ -19,7 +19,6 @@ a { color:#2196F3; font-weight:bold; text-decoration:none; }
 <p id="fallback" style="display:none;">If not redirected, <a id="redirectLink" href="#">click here</a>.</p>
 </div>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
@@ -75,7 +74,6 @@ if (!id) {
     const fallbackLink = document.getElementById('redirectLink');
     fallbackLink.href = redirectUrl;
     document.getElementById('fallback').style.display = 'block';
-
   }).catch(err => {
     document.getElementById('message').textContent = "An error occurred.";
     console.error(err);
