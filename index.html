@@ -4,19 +4,21 @@
 <meta charset="UTF-8">
 <title>QR Dashboard</title>
 
+<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<!-- QR Code -->
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
 <style>
 body { font-family: Arial,sans-serif; background:#f9f9f9; margin:0; }
 header { background:#4CAF50; color:white; padding:15px; display:flex; justify-content:space-between; }
-main { max-width:900px; margin:auto; padding:20px; }
+main { max-width:800px; margin:auto; padding:20px; }
 input, button { width:100%; padding:10px; margin:5px 0; }
 .qr-card { background:white; padding:15px; margin:10px 0; border-radius:6px; }
 .qr-actions button { width:auto; margin-right:5px; }
-.locked { opacity:0.6; }
 </style>
 </head>
 <body>
@@ -27,8 +29,8 @@ input, button { width:100%; padding:10px; margin:5px 0; }
 
 <main>
   <h3>Create QR Code</h3>
-  <input id="qrLabel" placeholder="Label (required)">
-  <input id="qrText" placeholder="Full URL (optional, leave blank for scan.html)">
+  <input id="qrLabel" placeholder="Label (optional)">
+  <input id="qrText" placeholder="Full URL (optional, leave blank to generate scan.html)">
   <button onclick="createQRCode()">Create QR</button>
 
   <h3>Your QR Codes</h3>
@@ -63,61 +65,62 @@ auth.onAuthStateChanged(u => {
 // ---------------------- LOGOUT ----------------------
 function logout() { auth.signOut().then(()=>location.href='login.html'); }
 
-// ---------------------- CREATE QR ----------------------
+// ---------------------- CREATE QR CODE ----------------------
 function createQRCode() {
   const label = qrLabel.value.trim();
   let text = qrText.value.trim();
-  if (!label) return alert("Enter a label.");
 
+  if (!label) return alert("Enter a label for the QR code.");
+
+  // First create Firestore doc
   db.collection('qrcodes').add({
     uid: user.uid,
     text: '', // placeholder
     label,
-    scans: 0,
-    locked: false
+    scans: 0
   }).then(docRef => {
-    if (!text || !/^https?:\/\//.test(text)) {
+
+    // If user entered a full URL, use it; otherwise, generate scan.html link
+    if (text && /^https?:\/\//.test(text)) {
+      // External URL
+      text = text;
+    } else {
+      // GitHub Pages scan.html link
       text = `${githubPagesUrl}/scan.html?id=${docRef.id}`;
     }
-    return docRef.update({ text }).then(() => docRef.id);
-  }).then(docId => {
+
+    // Update Firestore doc with final URL
+    return docRef.update({ text });
+
+  }).then(() => {
     qrLabel.value = '';
     qrText.value = '';
-    console.log("QR created:", docId);
   }).catch(err => alert(err.message));
 }
 
 // ---------------------- LOAD QR CODES ----------------------
 function loadQRCodesRealtime() {
-  db.collection('qrcodes').where('uid','==',user.uid)
-    .onSnapshot(snapshot => {
-      qrList.innerHTML = '';
-      snapshot.forEach(doc => {
-        const d = doc.data();
-        const div = document.createElement('div');
-        div.className = 'qr-card';
-        div.id = `qr-${doc.id}`;
-        div.innerHTML = `
-          <strong>${d.label || 'Untitled QR'}</strong><br>
-          Scans: <span id="scancount-${doc.id}">${d.scans || 0}</span><br>
-          <canvas id="c-${doc.id}"></canvas><br>
-          <div class="qr-actions">
-            <button onclick="downloadQRCode('${doc.id}')">Download</button>
-            <button onclick="deleteQRCode('${doc.id}')">Delete</button>
-          </div>
-        `;
-        qrList.appendChild(div);
+  db.collection('qrcodes').where('uid','==',user.uid).onSnapshot(snapshot => {
+    qrList.innerHTML = '';
+    snapshot.forEach(doc => {
+      const d = doc.data();
+      const div = document.createElement('div');
+      div.className='qr-card';
+      div.innerHTML = `
+        <strong>${d.label || 'Untitled QR'}</strong><br>
+        Scans: ${d.scans}<br><br>
+        <canvas id="c-${doc.id}"></canvas><br><br>
+        <div class="qr-actions">
+          <button onclick="downloadQRCode('${doc.id}')">Download</button>
+          <button onclick="deleteQRCode('${doc.id}')">Delete</button>
+        </div>
+      `;
+      qrList.appendChild(div);
 
-        QRCode.toCanvas(document.getElementById(`c-${doc.id}`), d.text);
-
-        // ---------------------- LIVE SCAN COUNT ----------------------
-        db.collection('qrcodes').doc(doc.id)
-          .onSnapshot(docSnap => {
-            if (!docSnap.exists) return;
-            document.getElementById(`scancount-${doc.id}`).textContent = docSnap.data().scans || 0;
-          });
-      });
+      // Generate QR code pointing to final URL
+      QRCode.toCanvas(document.getElementById(`c-${doc.id}`), d.text);
     });
+  });
 }
 
 // ---------------------- DOWNLOAD QR ----------------------
