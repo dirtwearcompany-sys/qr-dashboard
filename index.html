@@ -57,6 +57,7 @@ const db = firebase.firestore();
 let user;
 
 // ---------------------- CONFIG ----------------------
+// Make sure scan.html is in the same folder as index.html
 const githubPagesUrl = "https://dirtwearcompany-sys.github.io/qr.dashboard";
 
 // ---------------------- AUTH CHECK ----------------------
@@ -138,7 +139,9 @@ function loadQRCodesRealtime() {
               tr.innerHTML = `<td>${count}</td><td>${snap.data().timestamp.toDate().toLocaleString()}</td>`;
               tbody.appendChild(tr);
             });
-            Scans: <span id="scancount-${doc.id}">${d.scans || 0}</span>
+
+            // Update scan count and last scan
+            document.getElementById(`scancount-${doc.id}`).textContent = count;
             document.getElementById(`lastscan-${doc.id}`).textContent =
               scanSnapshot.docs[0] ? scanSnapshot.docs[0].data().timestamp.toDate().toLocaleString() : 'Never';
           });
