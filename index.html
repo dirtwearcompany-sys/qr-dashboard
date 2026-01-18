@@ -9,7 +9,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-<!-- QR Code -->
+<!-- QR Code generation -->
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
 <style>
@@ -34,7 +34,7 @@ input, button { width:100%; padding:10px; margin:5px 0; }
 <main>
   <h3>Create QR Code</h3>
   <input id="qrLabel" placeholder="Label (optional)">
-  <input id="qrText" placeholder="Full URL (optional, leave blank for scan.html)">
+  <input id="qrText" placeholder="Full URL (optional, leave blank to generate scan.html)">
   <button onclick="createQRCode()">Create QR</button>
 
   <h3>Your QR Codes</h3>
@@ -71,22 +71,19 @@ function logout() { auth.signOut().then(()=>location.href='login.html'); }
 
 // ---------------------- CREATE QR CODE ----------------------
 function createQRCode() {
-  const label = qrLabel.value.trim() || 'Untitled QR';
+  const label = qrLabel.value.trim() || "Untitled QR";
   let text = qrText.value.trim();
 
-  // First create Firestore doc
   db.collection('qrcodes').add({
     uid: user.uid,
     text: '', // placeholder
-    label: label,
+    label,
     scans: 0,
     lastScan: null,
     locked: false
   }).then(docRef => {
-    // Determine final URL
-    if (text && /^https?:\/\//.test(text)) {
-      text = text; // user-entered URL
-    } else {
+    // Use user URL if provided; else scan.html link
+    if (!text || !/^https?:\/\//.test(text)) {
       text = `${githubPagesUrl}/scan.html?id=${docRef.id}`;
     }
     return docRef.update({ text });
@@ -96,7 +93,7 @@ function createQRCode() {
   }).catch(err => alert(err.message));
 }
 
-// ---------------------- LOAD QR CODES WITH LIVE SCANS ----------------------
+// ---------------------- LOAD QR CODES & LIVE SCANS ----------------------
 function loadQRCodesRealtime() {
   db.collection('qrcodes').where('uid','==',user.uid)
     .onSnapshot(snapshot => {
@@ -109,7 +106,7 @@ function loadQRCodesRealtime() {
         div.innerHTML = `
           <strong>${d.label}</strong><br>
           Status: <span id="status-${doc.id}">${d.locked ? 'Locked' : 'Unlocked'}</span><br>
-          Scans: <span id="scancount-${doc.id}">${d.scans || 0}</span><br>
+          Scans: <span id="scancount-${doc.id}">${d.scans}</span><br>
           Last Scan: <span id="lastscan-${doc.id}">${d.lastScan ? d.lastScan.toDate().toLocaleString() : 'Never'}</span><br><br>
           <canvas id="c-${doc.id}"></canvas><br><br>
           <div class="qr-actions">
@@ -128,19 +125,33 @@ function loadQRCodesRealtime() {
         // Generate QR code
         QRCode.toCanvas(document.getElementById(`c-${doc.id}`), d.text);
 
-        // ---------------------- LISTEN TO SCANS SUBCOLLECTION ----------------------
-        // If you want individual scan logs (optional), you can use a scans subcollection
-        // For your rules, we just update scans count and lastScan in main doc
-        const scancountElem = document.getElementById(`scancount-${doc.id}`);
-        const lastscanElem = document.getElementById(`lastscan-${doc.id}`);
-
-        // Listen to changes in the document itself (scans + lastScan)
+        // ---------------------- LIVE SCAN LOG & COUNT ----------------------
+        // Listen to this QR's document to update scans & lastScan
         db.collection('qrcodes').doc(doc.id)
-          .onSnapshot(updatedDoc => {
-            const data = updatedDoc.data();
-            scancountElem.textContent = data.scans;
-            lastscanElem.textContent = data.lastScan ? data.lastScan.toDate().toLocaleString() : 'Never';
+          .onSnapshot(docSnap => {
+            const data = docSnap.data();
+            document.getElementById(`scancount-${doc.id}`).textContent = data.scans;
+            document.getElementById(`lastscan-${doc.id}`).textContent =
+              data.lastScan ? data.lastScan.toDate().toLocaleString() : 'Never';
           });
+
+        // Optional: If you have a scans subcollection, listen here for live log
+        // Uncomment if you store each scan separately
+        /*
+        db.collection('qrcodes').doc(doc.id)
+          .collection('scans').orderBy('timestamp','desc')
+          .onSnapshot(scanSnapshot => {
+            const tbody = document.querySelector(`#table-${doc.id} tbody`);
+            tbody.innerHTML = '';
+            let count = 0;
+            scanSnapshot.forEach(snap => {
+              count++;
+              const tr = document.createElement('tr');
+              tr.innerHTML = `<td>${count}</td><td>${snap.data().timestamp.toDate().toLocaleString()}</td>`;
+              tbody.appendChild(tr);
+            });
+          });
+        */
       });
     });
 }
